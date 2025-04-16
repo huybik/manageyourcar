@@ -51,10 +51,14 @@ export const parts = pgTable("parts", {
   category: text("category").notNull(),
   isStandard: boolean("is_standard").default(true), // Whether this is a standard part or a custom part
   price: real("price").notNull(),
+  quantity: integer("quantity").default(0), // Current stock quantity
+  minimumStock: integer("minimum_stock").default(10), // Minimum required stock level
   supplier: text("supplier"),
   location: text("location"),
   imageUrl: text("image_url"),
   maintenanceInterval: integer("maintenance_interval"), // Default miles between maintenance
+  lastRestocked: timestamp("last_restocked"), // Date of last restock
+  compatibleVehicles: json("compatible_vehicles").$type<string[]>(), // Array of compatible vehicle makes/models
 });
 
 export const insertPartSchema = createInsertSchema(parts).omit({
