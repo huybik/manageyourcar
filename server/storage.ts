@@ -1,9 +1,11 @@
 import {
-  users, vehicles, parts, maintenance, orders, orderItems, activityLogs,
+  users, vehicles, parts, vehicleParts, maintenance, orders, orderItems, activityLogs, notifications,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Part, type InsertPart,
+  type VehiclePart, type InsertVehiclePart,
   type Maintenance, type InsertMaintenance,
+  type Notification, type InsertNotification,
   type Order, type InsertOrder,
   type OrderItem, type InsertOrderItem,
   type ActivityLog, type InsertActivityLog,

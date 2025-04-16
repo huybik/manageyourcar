@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   email: text("email"),
   phone: text("phone"),
   profileImage: text("profile_image"),
+  notificationEnabled: boolean("notification_enabled").default(true),
+  fcmToken: text("fcm_token"), // For push notifications
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -33,6 +35,7 @@ export const vehicles = pgTable("vehicles", {
   status: text("status").notNull(), // 'active', 'maintenance', 'out_of_service'
   nextMaintenanceDate: timestamp("next_maintenance_date"),
   nextMaintenanceMileage: integer("next_maintenance_mileage"),
+  qrCode: text("qr_code"), // QR code for vehicle identification/scanning
 });
 
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({
@@ -46,16 +49,33 @@ export const parts = pgTable("parts", {
   sku: text("sku").notNull().unique(),
   description: text("description"),
   category: text("category").notNull(),
-  quantity: integer("quantity").notNull(),
-  minimumStock: integer("minimum_stock").notNull(),
+  isStandard: boolean("is_standard").default(true), // Whether this is a standard part or a custom part
   price: real("price").notNull(),
   supplier: text("supplier"),
   location: text("location"),
-  compatibleVehicles: json("compatible_vehicles"),
-  lastRestocked: timestamp("last_restocked"),
+  imageUrl: text("image_url"),
+  maintenanceInterval: integer("maintenance_interval"), // Default miles between maintenance
 });
 
 export const insertPartSchema = createInsertSchema(parts).omit({
+  id: true,
+});
+
+// Vehicle-Parts Association Schema
+export const vehicleParts = pgTable("vehicle_parts", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id).notNull(),
+  partId: integer("part_id").references(() => parts.id).notNull(),
+  isCustom: boolean("is_custom").default(false), // Whether this is a custom part for this vehicle
+  maintenanceInterval: integer("maintenance_interval"), // Miles between maintenance
+  lastMaintenanceDate: timestamp("last_maintenance_date"),
+  lastMaintenanceMileage: integer("last_maintenance_mileage"),
+  nextMaintenanceDate: timestamp("next_maintenance_date"),
+  nextMaintenanceMileage: integer("next_maintenance_mileage"),
+  notes: text("notes"),
+});
+
+export const insertVehiclePartSchema = createInsertSchema(vehicleParts).omit({
   id: true,
 });
 
@@ -72,11 +92,35 @@ export const maintenance = pgTable("maintenance", {
   completedDate: timestamp("completed_date"),
   notes: text("notes"),
   partsUsed: json("parts_used"), // Array of part IDs and quantities
+  cost: real("cost"), // Cost of maintenance
+  bill: json("bill"), // Bill details including items, labor, etc.
+  billImageUrl: text("bill_image_url"), // Image of receipt/bill
+  isUnscheduled: boolean("is_unscheduled").default(false), // Whether this was an unscheduled maintenance
+  approvalStatus: text("approval_status"), // 'pending', 'approved', 'rejected' (for unscheduled maintenance)
+  approvedBy: integer("approved_by").references(() => users.id), // Who approved the unscheduled maintenance
 });
 
 export const insertMaintenanceSchema = createInsertSchema(maintenance).omit({
   id: true,
   completedDate: true,
+});
+
+// Notifications Schema
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull(), // 'maintenance', 'approval', 'assignment', etc.
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").notNull(),
+  relatedId: integer("related_id"), // ID of the related entity
+  relatedType: text("related_type"), // Type of the related entity
+  link: text("link"), // Link to navigate to in the app
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
 });
 
 // Orders Schema
@@ -135,11 +179,17 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 
+export type VehiclePart = typeof vehicleParts.$inferSelect;
+export type InsertVehiclePart = z.infer<typeof insertVehiclePartSchema>;
+
 export type Part = typeof parts.$inferSelect;
 export type InsertPart = z.infer<typeof insertPartSchema>;
 
 export type Maintenance = typeof maintenance.$inferSelect;
 export type InsertMaintenance = z.infer<typeof insertMaintenanceSchema>;
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
