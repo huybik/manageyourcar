@@ -6,6 +6,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import logger from "@/lib/logger";
 import { type Vehicle, type User } from "@shared/schema";
 
 import {
@@ -74,7 +75,14 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
 
   const createMaintenanceMutation = useMutation({
     mutationFn: async (data: MaintenanceFormValues) => {
-      const response = await apiRequest("POST", "/api/maintenance", data);
+      // Ensure dueDate is sent in ISO format
+      const formattedData = {
+        ...data,
+        dueDate: data.dueDate.toISOString(),
+      };
+      
+      console.log("Submitting maintenance data:", formattedData);
+      const response = await apiRequest("POST", "/api/maintenance", formattedData);
       return response.json();
     },
     onSuccess: () => {
@@ -96,6 +104,13 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
   });
 
   const onSubmit = (data: MaintenanceFormValues) => {
+    logger.logFormSubmission("MaintenanceForm", true, {
+      vehicleId: data.vehicleId,
+      type: data.type,
+      description: data.description,
+      priority: data.priority,
+      dueDate: data.dueDate.toISOString(),
+    });
     createMaintenanceMutation.mutate(data);
   };
 
@@ -289,12 +304,22 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
         />
 
         <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => {
+              logger.logButtonClick("Cancel", "MaintenanceForm");
+              onCancel();
+            }}
+          >
             Cancel
           </Button>
           <Button 
             type="submit" 
             disabled={createMaintenanceMutation.isPending}
+            onClick={() => {
+              logger.logButtonClick("Schedule Maintenance", "MaintenanceForm");
+            }}
           >
             {createMaintenanceMutation.isPending && (
               <span className="material-icons animate-spin mr-2 text-sm">refresh</span>
