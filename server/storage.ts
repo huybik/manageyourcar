@@ -18,20 +18,32 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getUsers(): Promise<User[]>;
+  updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
 
   // Vehicles
   getVehicle(id: number): Promise<Vehicle | undefined>;
   getVehicles(): Promise<Vehicle[]>;
   getVehiclesByUser(userId: number): Promise<Vehicle[]>;
+  getVehicleByQrCode(qrCode: string): Promise<Vehicle | undefined>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   updateVehicle(id: number, vehicle: Partial<InsertVehicle>): Promise<Vehicle | undefined>;
   deleteVehicle(id: number): Promise<boolean>;
+  
+  // Vehicle Parts Association
+  getVehiclePart(id: number): Promise<VehiclePart | undefined>;
+  getVehiclePartsByVehicle(vehicleId: number): Promise<VehiclePart[]>;
+  getVehiclePartsByPart(partId: number): Promise<VehiclePart[]>;
+  createVehiclePart(vehiclePart: InsertVehiclePart): Promise<VehiclePart>;
+  updateVehiclePart(id: number, vehiclePart: Partial<InsertVehiclePart>): Promise<VehiclePart | undefined>;
+  deleteVehiclePart(id: number): Promise<boolean>;
+  getVehiclePartsNeedingMaintenance(): Promise<VehiclePart[]>;
 
   // Parts
   getPart(id: number): Promise<Part | undefined>;
   getPartBySku(sku: string): Promise<Part | undefined>;
   getParts(): Promise<Part[]>;
-  getLowStockParts(): Promise<Part[]>;
+  getStandardParts(): Promise<Part[]>;
+  getCustomParts(): Promise<Part[]>;
   createPart(part: InsertPart): Promise<Part>;
   updatePart(id: number, part: Partial<InsertPart>): Promise<Part | undefined>;
   deletePart(id: number): Promise<boolean>;
@@ -41,9 +53,20 @@ export interface IStorage {
   getMaintenanceForVehicle(vehicleId: number): Promise<Maintenance[]>;
   getMaintenanceTasks(): Promise<Maintenance[]>;
   getPendingMaintenance(): Promise<Maintenance[]>;
+  getUnscheduledMaintenance(): Promise<Maintenance[]>;
+  getPendingApprovalMaintenance(): Promise<Maintenance[]>;
   createMaintenance(maintenance: InsertMaintenance): Promise<Maintenance>;
   updateMaintenance(id: number, maintenance: Partial<InsertMaintenance>): Promise<Maintenance | undefined>;
   deleteMaintenance(id: number): Promise<boolean>;
+
+  // Notifications
+  getNotification(id: number): Promise<Notification | undefined>;
+  getUserNotifications(userId: number): Promise<Notification[]>;
+  getUnreadUserNotifications(userId: number): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  updateNotification(id: number, notification: Partial<InsertNotification>): Promise<Notification | undefined>;
+  markNotificationAsRead(id: number): Promise<Notification | undefined>;
+  deleteNotification(id: number): Promise<boolean>;
 
   // Orders
   getOrder(id: number): Promise<Order | undefined>;
@@ -70,7 +93,9 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private vehicles: Map<number, Vehicle>;
   private parts: Map<number, Part>;
+  private vehicleParts: Map<number, VehiclePart>;
   private maintenanceTasks: Map<number, Maintenance>;
+  private notifications: Map<number, Notification>;
   private orders: Map<number, Order>;
   private orderItems: Map<number, OrderItem>;
   private activityLogs: Map<number, ActivityLog>;
@@ -79,7 +104,9 @@ export class MemStorage implements IStorage {
   private userCounter: number;
   private vehicleCounter: number;
   private partCounter: number;
+  private vehiclePartCounter: number;
   private maintenanceCounter: number;
+  private notificationCounter: number;
   private orderCounter: number;
   private orderItemCounter: number;
   private activityLogCounter: number;
@@ -89,7 +116,9 @@ export class MemStorage implements IStorage {
     this.users = new Map();
     this.vehicles = new Map();
     this.parts = new Map();
+    this.vehicleParts = new Map();
     this.maintenanceTasks = new Map();
+    this.notifications = new Map();
     this.orders = new Map();
     this.orderItems = new Map();
     this.activityLogs = new Map();
@@ -98,7 +127,9 @@ export class MemStorage implements IStorage {
     this.userCounter = 1;
     this.vehicleCounter = 1;
     this.partCounter = 1;
+    this.vehiclePartCounter = 1;
     this.maintenanceCounter = 1;
+    this.notificationCounter = 1;
     this.orderCounter = 1;
     this.orderItemCounter = 1;
     this.activityLogCounter = 1;
@@ -365,6 +396,16 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
 
+  // User methods
+  async updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined> {
+    const existingUser = this.users.get(id);
+    if (!existingUser) return undefined;
+    
+    const updatedUser = { ...existingUser, ...user };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
   // Vehicle methods
   async getVehicle(id: number): Promise<Vehicle | undefined> {
     return this.vehicles.get(id);
@@ -380,9 +421,25 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getVehicleByQrCode(qrCode: string): Promise<Vehicle | undefined> {
+    return Array.from(this.vehicles.values()).find(
+      (vehicle) => vehicle.qrCode === qrCode,
+    );
+  }
+
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
     const id = this.vehicleCounter++;
-    const vehicle: Vehicle = { ...insertVehicle, id };
+    // Generate QR code for the vehicle if not provided
+    const qrCode = insertVehicle.qrCode || `VEH-${id}-${Math.random().toString(36).substring(2, 10)}`;
+    const vehicle: Vehicle = { 
+      ...insertVehicle, 
+      id, 
+      qrCode,
+      licensePlate: insertVehicle.licensePlate || null,
+      assignedTo: insertVehicle.assignedTo || null,
+      nextMaintenanceDate: insertVehicle.nextMaintenanceDate || null,
+      nextMaintenanceMileage: insertVehicle.nextMaintenanceMileage || null
+    };
     this.vehicles.set(id, vehicle);
     return vehicle;
   }
@@ -398,6 +455,63 @@ export class MemStorage implements IStorage {
 
   async deleteVehicle(id: number): Promise<boolean> {
     return this.vehicles.delete(id);
+  }
+  
+  // Vehicle Parts Association methods
+  async getVehiclePart(id: number): Promise<VehiclePart | undefined> {
+    return this.vehicleParts.get(id);
+  }
+
+  async getVehiclePartsByVehicle(vehicleId: number): Promise<VehiclePart[]> {
+    return Array.from(this.vehicleParts.values()).filter(
+      (vehiclePart) => vehiclePart.vehicleId === vehicleId,
+    );
+  }
+
+  async getVehiclePartsByPart(partId: number): Promise<VehiclePart[]> {
+    return Array.from(this.vehicleParts.values()).filter(
+      (vehiclePart) => vehiclePart.partId === partId,
+    );
+  }
+
+  async createVehiclePart(insertVehiclePart: InsertVehiclePart): Promise<VehiclePart> {
+    const id = this.vehiclePartCounter++;
+    const vehiclePart: VehiclePart = { ...insertVehiclePart, id };
+    this.vehicleParts.set(id, vehiclePart);
+    return vehiclePart;
+  }
+
+  async updateVehiclePart(id: number, vehiclePart: Partial<InsertVehiclePart>): Promise<VehiclePart | undefined> {
+    const existingVehiclePart = this.vehicleParts.get(id);
+    if (!existingVehiclePart) return undefined;
+    
+    const updatedVehiclePart = { ...existingVehiclePart, ...vehiclePart };
+    this.vehicleParts.set(id, updatedVehiclePart);
+    return updatedVehiclePart;
+  }
+
+  async deleteVehiclePart(id: number): Promise<boolean> {
+    return this.vehicleParts.delete(id);
+  }
+
+  async getVehiclePartsNeedingMaintenance(): Promise<VehiclePart[]> {
+    const today = new Date();
+    return Array.from(this.vehicleParts.values()).filter(
+      (vehiclePart) => {
+        // Check if next maintenance date is set and is in the past or today
+        if (vehiclePart.nextMaintenanceDate && vehiclePart.nextMaintenanceDate <= today) {
+          return true;
+        }
+        
+        // Check if vehicle exists and has mileage information
+        const vehicle = this.vehicles.get(vehiclePart.vehicleId);
+        if (vehicle && vehiclePart.nextMaintenanceMileage && vehicle.mileage >= vehiclePart.nextMaintenanceMileage) {
+          return true;
+        }
+        
+        return false;
+      }
+    );
   }
 
   // Part methods
@@ -415,15 +529,30 @@ export class MemStorage implements IStorage {
     return Array.from(this.parts.values());
   }
 
-  async getLowStockParts(): Promise<Part[]> {
+  async getStandardParts(): Promise<Part[]> {
     return Array.from(this.parts.values()).filter(
-      (part) => part.quantity < part.minimumStock,
+      (part) => part.isStandard === true,
+    );
+  }
+
+  async getCustomParts(): Promise<Part[]> {
+    return Array.from(this.parts.values()).filter(
+      (part) => part.isStandard === false,
     );
   }
 
   async createPart(insertPart: InsertPart): Promise<Part> {
     const id = this.partCounter++;
-    const part: Part = { ...insertPart, id };
+    const part: Part = { 
+      ...insertPart, 
+      id,
+      description: insertPart.description || null,
+      isStandard: insertPart.isStandard ?? true,
+      supplier: insertPart.supplier || null,
+      location: insertPart.location || null,
+      imageUrl: insertPart.imageUrl || null,
+      maintenanceInterval: insertPart.maintenanceInterval || null
+    };
     this.parts.set(id, part);
     return part;
   }
@@ -461,10 +590,36 @@ export class MemStorage implements IStorage {
       (maintenance) => maintenance.status === "pending" || maintenance.status === "overdue",
     );
   }
+  
+  async getUnscheduledMaintenance(): Promise<Maintenance[]> {
+    return Array.from(this.maintenanceTasks.values()).filter(
+      (maintenance) => maintenance.isUnscheduled === true,
+    );
+  }
+  
+  async getPendingApprovalMaintenance(): Promise<Maintenance[]> {
+    return Array.from(this.maintenanceTasks.values()).filter(
+      (maintenance) => maintenance.isUnscheduled === true && maintenance.approvalStatus === "pending",
+    );
+  }
 
   async createMaintenance(insertMaintenance: InsertMaintenance): Promise<Maintenance> {
     const id = this.maintenanceCounter++;
-    const maintenance: Maintenance = { ...insertMaintenance, id, completedDate: null };
+    const maintenance: Maintenance = { 
+      ...insertMaintenance, 
+      id, 
+      completedDate: null,
+      description: insertMaintenance.description || null,
+      notes: insertMaintenance.notes || null,
+      assignedTo: insertMaintenance.assignedTo || null,
+      partsUsed: insertMaintenance.partsUsed || null,
+      cost: insertMaintenance.cost || null,
+      bill: insertMaintenance.bill || null,
+      billImageUrl: insertMaintenance.billImageUrl || null,
+      isUnscheduled: insertMaintenance.isUnscheduled || false,
+      approvalStatus: insertMaintenance.approvalStatus || null,
+      approvedBy: insertMaintenance.approvedBy || null
+    };
     this.maintenanceTasks.set(id, maintenance);
     return maintenance;
   }
@@ -480,6 +635,59 @@ export class MemStorage implements IStorage {
 
   async deleteMaintenance(id: number): Promise<boolean> {
     return this.maintenanceTasks.delete(id);
+  }
+
+  // Notification methods
+  async getNotification(id: number): Promise<Notification | undefined> {
+    return this.notifications.get(id);
+  }
+
+  async getUserNotifications(userId: number): Promise<Notification[]> {
+    return Array.from(this.notifications.values()).filter(
+      (notification) => notification.userId === userId,
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getUnreadUserNotifications(userId: number): Promise<Notification[]> {
+    return Array.from(this.notifications.values()).filter(
+      (notification) => notification.userId === userId && notification.isRead === false,
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createNotification(insertNotification: InsertNotification): Promise<Notification> {
+    const id = this.notificationCounter++;
+    const notification: Notification = { 
+      ...insertNotification, 
+      id,
+      isRead: insertNotification.isRead ?? false,
+      relatedId: insertNotification.relatedId || null,
+      relatedType: insertNotification.relatedType || null,
+      link: insertNotification.link || null
+    };
+    this.notifications.set(id, notification);
+    return notification;
+  }
+
+  async updateNotification(id: number, notification: Partial<InsertNotification>): Promise<Notification | undefined> {
+    const existingNotification = this.notifications.get(id);
+    if (!existingNotification) return undefined;
+    
+    const updatedNotification = { ...existingNotification, ...notification };
+    this.notifications.set(id, updatedNotification);
+    return updatedNotification;
+  }
+  
+  async markNotificationAsRead(id: number): Promise<Notification | undefined> {
+    const existingNotification = this.notifications.get(id);
+    if (!existingNotification) return undefined;
+    
+    const updatedNotification = { ...existingNotification, isRead: true };
+    this.notifications.set(id, updatedNotification);
+    return updatedNotification;
+  }
+
+  async deleteNotification(id: number): Promise<boolean> {
+    return this.notifications.delete(id);
   }
 
   // Order methods
