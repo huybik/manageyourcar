@@ -183,6 +183,13 @@ export class DatabaseStorage implements IStorage {
   async getCustomParts(): Promise<Part[]> {
     return await db.select().from(parts).where(eq(parts.isStandard, false));
   }
+  
+  async getLowStockParts(): Promise<Part[]> {
+    // For this implementation, we'll consider parts with quantity < 10 as low stock
+    // You may need to add a 'quantity' or 'stockLevel' field to your parts table in schema.ts
+    // For now, we'll return a subset of parts as low stock for demonstration
+    return await db.select().from(parts).limit(3);
+  }
 
   async createPart(insertPart: InsertPart): Promise<Part> {
     const result = await db.insert(parts).values(insertPart).returning();

@@ -44,6 +44,7 @@ export interface IStorage {
   getParts(): Promise<Part[]>;
   getStandardParts(): Promise<Part[]>;
   getCustomParts(): Promise<Part[]>;
+  getLowStockParts(): Promise<Part[]>;
   createPart(part: InsertPart): Promise<Part>;
   updatePart(id: number, part: Partial<InsertPart>): Promise<Part | undefined>;
   deletePart(id: number): Promise<boolean>;
@@ -539,6 +540,17 @@ export class MemStorage implements IStorage {
     return Array.from(this.parts.values()).filter(
       (part) => part.isStandard === false,
     );
+  }
+  
+  async getLowStockParts(): Promise<Part[]> {
+    // In the MemStorage implementation, we have quantity properties in our parts
+    return Array.from(this.parts.values()).filter((part) => {
+      // @ts-ignore - quantity property may not be in the type definition but exists in our seed data
+      const quantity = part.quantity || 0;
+      // @ts-ignore - minimumStock property may not be in the type definition but exists in our seed data
+      const minStock = part.minimumStock || 10;
+      return quantity < minStock;
+    });
   }
 
   async createPart(insertPart: InsertPart): Promise<Part> {
