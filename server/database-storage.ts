@@ -12,7 +12,7 @@ import {
 } from "@shared/schema";
 import { format } from "date-fns";
 import { db } from "./db";
-import { eq, and, desc, asc, lt, gte, or, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, lt, gte, gt, or, isNull } from "drizzle-orm";
 import { IStorage } from "./storage";
 
 export class DatabaseStorage implements IStorage {
@@ -185,10 +185,15 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getLowStockParts(): Promise<Part[]> {
-    // For this implementation, we'll consider parts with quantity < 10 as low stock
-    // You may need to add a 'quantity' or 'stockLevel' field to your parts table in schema.ts
-    // For now, we'll return a subset of parts as low stock for demonstration
-    return await db.select().from(parts).limit(3);
+    // Parts with quantity less than minimumStock are considered low stock
+    return await db.select()
+      .from(parts)
+      .where(
+        and(
+          lt(parts.quantity, parts.minimumStock),
+          gt(parts.minimumStock, 0)
+        )
+      );
   }
 
   async createPart(insertPart: InsertPart): Promise<Part> {
