@@ -1,14 +1,16 @@
+
 import { db } from "./db";
 import { 
   users, vehicles, parts, vehicleParts, maintenance, notifications, activityLogs
 } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 // Function to seed initial data
 export async function seedDatabase() {
   console.log("Checking if database needs seeding...");
   
   // Check if users table is empty
-  const existingUsers = await db.select().from(users);
+  const existingUsers = await db.select().from(users).limit(1);
   if (existingUsers.length > 0) {
     console.log("Database already has users, skipping seed");
     return;
@@ -70,7 +72,7 @@ export async function seedDatabase() {
     mileage: 15000,
     assignedTo: driver1.id,
     status: "active",
-    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 30)), // Pass Date object
     nextMaintenanceMileage: 20000,
     qrCode: "TRUCK-1-QR"
   }).returning();
@@ -86,7 +88,7 @@ export async function seedDatabase() {
     mileage: 25000,
     assignedTo: driver2.id,
     status: "active",
-    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 15)),
+    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 15)), // Pass Date object
     nextMaintenanceMileage: 30000,
     qrCode: "SEDAN-1-QR"
   }).returning();
@@ -102,7 +104,7 @@ export async function seedDatabase() {
     mileage: 5000,
     assignedTo: driver3.id,
     status: "active",
-    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 45)),
+    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 45)), // Pass Date object
     nextMaintenanceMileage: 10000,
     qrCode: "VAN-1-QR"
   }).returning();
@@ -115,6 +117,8 @@ export async function seedDatabase() {
     category: "Filters",
     isStandard: true,
     price: 15.99,
+    quantity: 50,
+    minimumStock: 10,
     supplier: "AutoParts Inc.",
     location: "Warehouse A, Shelf 3",
     maintenanceInterval: 5000 // Miles
@@ -127,6 +131,8 @@ export async function seedDatabase() {
     category: "Brakes",
     isStandard: true,
     price: 89.99,
+    quantity: 25,
+    minimumStock: 5,
     supplier: "Brakemaster Systems",
     location: "Warehouse B, Shelf 1",
     maintenanceInterval: 20000 // Miles
@@ -139,6 +145,8 @@ export async function seedDatabase() {
     category: "Exterior",
     isStandard: true,
     price: 24.99,
+    quantity: 100,
+    minimumStock: 20,
     supplier: "AutoParts Inc.",
     location: "Warehouse A, Shelf 5",
     maintenanceInterval: 10000 // Miles
@@ -151,6 +159,8 @@ export async function seedDatabase() {
     category: "Filters",
     isStandard: true,
     price: 29.99,
+    quantity: 8, // Low stock example
+    minimumStock: 15,
     supplier: "FilterPro",
     location: "Warehouse A, Shelf 4",
     maintenanceInterval: 15000 // Miles
@@ -162,9 +172,9 @@ export async function seedDatabase() {
     partId: oilFilters.id,
     isCustom: false,
     maintenanceInterval: 5000,
-    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 60)),
+    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 60)), // Pass Date object
     lastMaintenanceMileage: 10000,
-    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 30)), // Pass Date object
     nextMaintenanceMileage: 15000
   });
   
@@ -173,9 +183,9 @@ export async function seedDatabase() {
     partId: brakePads.id,
     isCustom: false,
     maintenanceInterval: 20000,
-    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 120)),
+    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 120)), // Pass Date object
     lastMaintenanceMileage: 5000,
-    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 60)),
+    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 60)), // Pass Date object
     nextMaintenanceMileage: 25000
   });
   
@@ -184,9 +194,9 @@ export async function seedDatabase() {
     partId: wiperBlades.id,
     isCustom: false,
     maintenanceInterval: 10000,
-    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 45)),
+    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 45)), // Pass Date object
     lastMaintenanceMileage: 20000,
-    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 15)),
+    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 15)), // Pass Date object
     nextMaintenanceMileage: 30000
   });
   
@@ -195,9 +205,9 @@ export async function seedDatabase() {
     partId: airFilters.id,
     isCustom: false,
     maintenanceInterval: 15000,
-    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 30)),
+    lastMaintenanceDate: new Date(new Date().setDate(new Date().getDate() - 30)), // Pass Date object
     lastMaintenanceMileage: 2000,
-    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 90)),
+    nextMaintenanceDate: new Date(new Date().setDate(new Date().getDate() + 90)), // Pass Date object
     nextMaintenanceMileage: 17000
   });
   
@@ -206,7 +216,7 @@ export async function seedDatabase() {
     vehicleId: truck.id,
     type: "oil_change",
     description: "Regular oil change and filter replacement",
-    dueDate: new Date(new Date().setDate(new Date().getDate() + 7)),
+    dueDate: new Date(new Date().setDate(new Date().getDate() + 7)), // Pass Date object
     status: "pending",
     priority: "normal",
     assignedTo: driver1.id,
@@ -217,7 +227,7 @@ export async function seedDatabase() {
     vehicleId: sedan.id,
     type: "brake_inspection",
     description: "Routine brake system inspection",
-    dueDate: new Date(new Date().setDate(new Date().getDate() + 3)),
+    dueDate: new Date(new Date().setDate(new Date().getDate() + 3)), // Pass Date object
     status: "scheduled",
     priority: "high",
     assignedTo: driver2.id,
@@ -228,7 +238,7 @@ export async function seedDatabase() {
     vehicleId: van.id,
     type: "tire_rotation",
     description: "Rotate tires and check pressure",
-    dueDate: new Date(new Date().setDate(new Date().getDate() - 2)),
+    dueDate: new Date(new Date().setDate(new Date().getDate() - 2)), // Pass Date object
     status: "overdue",
     priority: "normal",
     assignedTo: driver3.id,
@@ -242,7 +252,7 @@ export async function seedDatabase() {
     message: "Oil change due in 7 days for Delivery Truck 1",
     type: "maintenance",
     isRead: false,
-    createdAt: new Date(),
+    createdAt: new Date(), // Pass Date object
     relatedId: oilChange.id,
     relatedType: "maintenance",
     link: `/driver/maintenance/${oilChange.id}`
@@ -254,7 +264,7 @@ export async function seedDatabase() {
     message: "High priority brake inspection scheduled in 3 days",
     type: "maintenance",
     isRead: false,
-    createdAt: new Date(),
+    createdAt: new Date(), // Pass Date object
     relatedId: brakeInspection.id,
     relatedType: "maintenance",
     link: `/driver/maintenance/${brakeInspection.id}`
@@ -266,7 +276,7 @@ export async function seedDatabase() {
     message: "Tire rotation is now overdue by 2 days",
     type: "maintenance",
     isRead: false,
-    createdAt: new Date(),
+    createdAt: new Date(), // Pass Date object
     relatedId: tireRotation.id,
     relatedType: "maintenance",
     link: `/driver/maintenance/${tireRotation.id}`
@@ -277,7 +287,7 @@ export async function seedDatabase() {
     userId: adminUser.id,
     action: "user_created",
     description: "Created new driver account for Mike Johnson",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 30)),
+    timestamp: new Date(new Date().setDate(new Date().getDate() - 30)), // Pass Date object
     relatedId: driver1.id,
     relatedType: "user"
   });
@@ -286,7 +296,7 @@ export async function seedDatabase() {
     userId: adminUser.id,
     action: "vehicle_assigned",
     description: "Assigned Delivery Truck 1 to Mike Johnson",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 25)),
+    timestamp: new Date(new Date().setDate(new Date().getDate() - 25)), // Pass Date object
     relatedId: truck.id,
     relatedType: "vehicle"
   });
@@ -295,7 +305,7 @@ export async function seedDatabase() {
     userId: driver1.id,
     action: "maintenance_reported",
     description: "Reported oil leak in Delivery Truck 1",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 10)),
+    timestamp: new Date(new Date().setDate(new Date().getDate() - 10)), // Pass Date object
     relatedId: truck.id,
     relatedType: "vehicle"
   });
@@ -304,7 +314,7 @@ export async function seedDatabase() {
     userId: adminUser.id,
     action: "maintenance_scheduled",
     description: "Scheduled maintenance for oil change on Delivery Truck 1",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 5)),
+    timestamp: new Date(new Date().setDate(new Date().getDate() - 5)), // Pass Date object
     relatedId: oilChange.id,
     relatedType: "maintenance"
   });

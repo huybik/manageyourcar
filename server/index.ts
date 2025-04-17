@@ -1,7 +1,10 @@
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { seedDatabase } from "./db-seed";
+import { db } from "./db"; // Import db to potentially run migrations
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
 const app = express();
 app.use(express.json());
@@ -38,6 +41,17 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run migrations
+  try {
+    log("Running database migrations...");
+    migrate(db, { migrationsFolder: "./migrations" });
+    log("Migrations completed successfully.");
+  } catch (error) {
+    console.error(`Error running migrations: ${error}`);
+    log(`Error running migrations: ${error}`);
+    process.exit(1); // Exit if migrations fail
+  }
+
   // Seed the database with initial data
   try {
     await seedDatabase();
