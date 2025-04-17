@@ -11,3 +11,7 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+.text-primary {
+  color: black;
+}
