@@ -1,0 +1,13 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1744861171943,
+      "tag": "0000_daily_the_hand",
+      "breakpoints": true
+    }
+  ]
+}
