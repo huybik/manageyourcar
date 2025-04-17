@@ -1,3 +1,4 @@
+/* /client/src/components/maintenance/maintenance-form.tsx */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import logger from "@/lib/logger";
 import { type Vehicle, type User } from "@shared/schema";
+import { useTranslation } from "react-i18next";
 
 import {
   Form,
@@ -53,9 +55,15 @@ interface MaintenanceFormProps {
   onSuccess: () => void;
 }
 
-export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }: MaintenanceFormProps) {
+export default function MaintenanceForm({
+  vehicles,
+  users,
+  onCancel,
+  onSuccess,
+}: MaintenanceFormProps) {
   const [date, setDate] = useState<Date>();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const form = useForm<MaintenanceFormValues>({
@@ -80,24 +88,31 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
         ...data,
         dueDate: data.dueDate.toISOString(),
       };
-      
+
       console.log("Submitting maintenance data:", formattedData);
-      const response = await apiRequest("POST", "/api/maintenance", formattedData);
+      const response = await apiRequest(
+        "POST",
+        "/api/maintenance",
+        formattedData
+      );
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/maintenance"] });
       queryClient.invalidateQueries({ queryKey: ["/api/maintenance/pending"] });
       toast({
-        title: "Maintenance task created",
-        description: "The maintenance task has been scheduled successfully.",
+        title: t("maintenance.taskCreatedTitle"),
+        description: t("maintenance.taskCreatedDesc"),
       });
       onSuccess();
     },
     onError: (error) => {
       toast({
-        title: "Failed to create maintenance task",
-        description: error instanceof Error ? error.message : "An error occurred",
+        title: t("maintenance.taskFailedTitle"),
+        description:
+          error instanceof Error
+            ? error.message
+            : t("maintenance.taskFailedDesc"),
         variant: "destructive",
       });
     },
@@ -123,19 +138,24 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
             name="vehicleId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Vehicle</FormLabel>
+                <FormLabel>{t("maintenance.vehicle")}</FormLabel>
                 <Select
                   onValueChange={(value) => field.onChange(parseInt(value))}
                   defaultValue={field.value?.toString()}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select vehicle" />
+                      <SelectValue
+                        placeholder={t("maintenance.selectVehicle")}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     {vehicles.map((vehicle) => (
-                      <SelectItem key={vehicle.id} value={vehicle.id.toString()}>
+                      <SelectItem
+                        key={vehicle.id}
+                        value={vehicle.id.toString()}
+                      >
                         {vehicle.name} ({vehicle.make} {vehicle.model})
                       </SelectItem>
                     ))}
@@ -151,14 +171,16 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
             name="assignedTo"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Assign To</FormLabel>
+                <FormLabel>{t("maintenance.assignTo")}</FormLabel>
                 <Select
                   onValueChange={(value) => field.onChange(parseInt(value))}
                   defaultValue={field.value?.toString()}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select driver" />
+                      <SelectValue
+                        placeholder={t("maintenance.selectDriver")}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -181,21 +203,38 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
             name="type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Maintenance Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormLabel>{t("maintenance.maintenanceType")}</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
+                      <SelectValue placeholder={t("maintenance.selectType")} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="oil_change">Oil Change</SelectItem>
-                    <SelectItem value="brake_inspection">Brake Inspection</SelectItem>
-                    <SelectItem value="tire_rotation">Tire Rotation</SelectItem>
-                    <SelectItem value="engine_tuneup">Engine Tune-up</SelectItem>
-                    <SelectItem value="filter_replacement">Filter Replacement</SelectItem>
-                    <SelectItem value="battery_replacement">Battery Replacement</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="oil_change">
+                      {t("maintenance.oilChange")}
+                    </SelectItem>
+                    <SelectItem value="brake_inspection">
+                      {t("maintenance.brakeInspection")}
+                    </SelectItem>
+                    <SelectItem value="tire_rotation">
+                      {t("maintenance.tireRotation")}
+                    </SelectItem>
+                    <SelectItem value="engine_tuneup">
+                      {t("maintenance.engineTuneup")}
+                    </SelectItem>
+                    <SelectItem value="filter_replacement">
+                      {t("maintenance.filterReplacement")}
+                    </SelectItem>
+                    <SelectItem value="battery_replacement">
+                      {t("maintenance.batteryReplacement")}
+                    </SelectItem>
+                    <SelectItem value="other">
+                      {t("maintenance.other")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -208,18 +247,29 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
             name="priority"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Priority</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormLabel>{t("maintenance.priority")}</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select priority" />
+                      <SelectValue
+                        placeholder={t("maintenance.selectPriority")}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="low">{t("maintenance.low")}</SelectItem>
+                    <SelectItem value="normal">
+                      {t("maintenance.normal")}
+                    </SelectItem>
+                    <SelectItem value="high">
+                      {t("maintenance.high")}
+                    </SelectItem>
+                    <SelectItem value="critical">
+                      {t("maintenance.critical")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -233,9 +283,12 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel>{t("maintenance.descriptionLabel")}</FormLabel>
               <FormControl>
-                <Input placeholder="Enter maintenance description" {...field} />
+                <Input
+                  placeholder={t("maintenance.descriptionPlaceholder")}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -247,7 +300,7 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
           name="dueDate"
           render={({ field }) => (
             <FormItem className="flex flex-col">
-              <FormLabel>Due Date</FormLabel>
+              <FormLabel>{t("maintenance.dueDateLabel")}</FormLabel>
               <Popover>
                 <PopoverTrigger asChild>
                   <FormControl>
@@ -261,7 +314,7 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
                       {field.value ? (
                         format(field.value, "PPP")
                       ) : (
-                        <span>Pick a date</span>
+                        <span>{t("maintenance.pickDate")}</span>
                       )}
                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
@@ -290,10 +343,10 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
           name="notes"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Notes</FormLabel>
+              <FormLabel>{t("maintenance.notesLabel")}</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Enter any additional notes or instructions"
+                  placeholder={t("maintenance.notesPlaceholder")}
                   className="resize-none"
                   {...field}
                 />
@@ -304,27 +357,29 @@ export default function MaintenanceForm({ vehicles, users, onCancel, onSuccess }
         />
 
         <div className="flex justify-end space-x-2 pt-4">
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             onClick={() => {
               logger.logButtonClick("Cancel", "MaintenanceForm");
               onCancel();
             }}
           >
-            Cancel
+            {t("maintenance.cancel")}
           </Button>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={createMaintenanceMutation.isPending}
             onClick={() => {
               logger.logButtonClick("Schedule Maintenance", "MaintenanceForm");
             }}
           >
             {createMaintenanceMutation.isPending && (
-              <span className="material-icons animate-spin mr-2 text-sm">refresh</span>
+              <span className="material-icons animate-spin mr-2 text-sm">
+                refresh
+              </span>
             )}
-            Schedule Maintenance
+            {t("maintenance.submitSchedule")}
           </Button>
         </div>
       </form>

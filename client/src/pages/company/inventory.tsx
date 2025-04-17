@@ -1,18 +1,23 @@
+/* /client/src/pages/company/inventory.tsx */
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import InventoryList from "@/components/inventory/inventory-list";
+import { useTranslation } from "react-i18next";
 
 export default function InventoryPage() {
   const { toast } = useToast();
-  
+  const { t } = useTranslation();
+
   return (
     <div className="p-4 md:p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Inventory Management</h1>
-        <p className="text-gray-500">Track and manage your parts inventory</p>
+        <h1 className="text-2xl font-bold text-gray-800">
+          {t("inventory.title")}
+        </h1>
+        <p className="text-gray-500">{t("inventory.description")}</p>
       </div>
-      
+
       {/* Content */}
       <InventoryList />
     </div>

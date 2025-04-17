@@ -1,9 +1,11 @@
+/* /client/src/pages/login.tsx */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 import {
   Form,
@@ -15,7 +17,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -27,6 +35,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export default function Login() {
   const { login, isLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<LoginFormValues>({
@@ -41,11 +50,11 @@ export default function Login() {
     try {
       setIsSubmitting(true);
       const success = await login(data.username, data.password);
-      
+
       if (success) {
         toast({
-          title: "Login Successful",
-          description: "Welcome to FleetMaster",
+          title: t("login.loginSuccessTitle"),
+          description: t("login.loginSuccessDesc"),
         });
       }
     } catch (error) {
@@ -62,25 +71,33 @@ export default function Login() {
           <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white">
             <span className="material-icons">directions_car</span>
           </div>
-          <h1 className="ml-3 text-2xl font-bold text-primary flex items-center">FleetMaster</h1>
+          <h1 className="ml-3 text-2xl font-bold text-primary flex items-center">
+            FleetMaster
+          </h1>
         </div>
-        
+
         <Card>
           <CardHeader>
-            <CardTitle>Login to FleetMaster</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardTitle>{t("login.title")}</CardTitle>
+            <CardDescription>{t("login.description")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
                 <FormField
                   control={form.control}
                   name="username"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Username</FormLabel>
+                      <FormLabel>{t("login.usernameLabel")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter your username" {...field} />
+                        <Input
+                          placeholder={t("login.usernamePlaceholder")}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -91,29 +108,35 @@ export default function Login() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>{t("login.passwordLabel")}</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="Enter your password" {...field} />
+                        <Input
+                          type="password"
+                          placeholder={t("login.passwordPlaceholder")}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button 
-                  type="submit" 
-                  className="w-full" 
+                <Button
+                  type="submit"
+                  className="w-full"
                   disabled={isSubmitting || isLoading}
                 >
                   {isSubmitting || isLoading ? (
-                    <span className="material-icons animate-spin mr-2">refresh</span>
+                    <span className="material-icons animate-spin mr-2">
+                      refresh
+                    </span>
                   ) : null}
-                  Sign In
+                  {t("login.signIn")}
                 </Button>
               </form>
             </Form>
-            
+
             <div className="mt-4 text-center text-sm text-gray-500">
-              <p>Demo accounts:</p>
+              <p>{t("login.demoAccounts")}</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
@@ -123,7 +146,7 @@ export default function Login() {
                     form.setValue("password", "password");
                   }}
                 >
-                  Company Admin
+                  {t("login.companyAdmin")}
                 </Button>
                 <Button
                   variant="outline"
@@ -133,7 +156,7 @@ export default function Login() {
                     form.setValue("password", "password");
                   }}
                 >
-                  Driver
+                  {t("login.driver")}
                 </Button>
               </div>
             </div>

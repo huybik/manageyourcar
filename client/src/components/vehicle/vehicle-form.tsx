@@ -1,3 +1,4 @@
+/* /client/src/components/vehicle/vehicle-form.tsx */
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertVehicleSchema } from "@shared/schema";
@@ -6,6 +7,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { type Vehicle, type User } from "@shared/schema";
+import { useTranslation } from "react-i18next";
 
 import {
   Form,
@@ -48,11 +50,17 @@ interface VehicleFormProps {
   onSuccess: () => void;
 }
 
-export default function VehicleForm({ users, existingVehicle, onCancel, onSuccess }: VehicleFormProps) {
+export default function VehicleForm({
+  users,
+  existingVehicle,
+  onCancel,
+  onSuccess,
+}: VehicleFormProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  
-  const drivers = users.filter(user => user.role === "driver");
+
+  const drivers = users.filter((user) => user.role === "driver");
 
   // Set up default values
   const defaultValues: Partial<VehicleFormValues> = {
@@ -66,8 +74,11 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
     mileage: existingVehicle?.mileage || 0,
     assignedTo: existingVehicle?.assignedTo || undefined,
     status: existingVehicle?.status || "active",
-    nextMaintenanceDate: existingVehicle?.nextMaintenanceDate ? new Date(existingVehicle.nextMaintenanceDate) : null,
-    nextMaintenanceMileage: existingVehicle?.nextMaintenanceMileage || undefined,
+    nextMaintenanceDate: existingVehicle?.nextMaintenanceDate
+      ? new Date(existingVehicle.nextMaintenanceDate)
+      : null,
+    nextMaintenanceMileage:
+      existingVehicle?.nextMaintenanceMileage || undefined,
   };
 
   const form = useForm<VehicleFormValues>({
@@ -83,15 +94,16 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
       toast({
-        title: "Vehicle created",
-        description: "The vehicle has been created successfully.",
+        title: t("vehicles.vehicleCreatedTitle"),
+        description: t("vehicles.vehicleCreatedDesc"),
       });
       onSuccess();
     },
     onError: (error) => {
       toast({
-        title: "Failed to create vehicle",
-        description: error instanceof Error ? error.message : "An error occurred",
+        title: t("vehicles.vehicleFailedCreate"),
+        description:
+          error instanceof Error ? error.message : t("vehicles.errorOccurred"),
         variant: "destructive",
       });
     },
@@ -100,21 +112,26 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
   const updateVehicleMutation = useMutation({
     mutationFn: async (data: VehicleFormValues) => {
       if (!existingVehicle) throw new Error("No vehicle to update");
-      const response = await apiRequest("PUT", `/api/vehicles/${existingVehicle.id}`, data);
+      const response = await apiRequest(
+        "PUT",
+        `/api/vehicles/${existingVehicle.id}`,
+        data
+      );
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
       toast({
-        title: "Vehicle updated",
-        description: "The vehicle has been updated successfully.",
+        title: t("vehicles.vehicleUpdatedTitle"),
+        description: t("vehicles.vehicleUpdatedDesc"),
       });
       onSuccess();
     },
     onError: (error) => {
       toast({
-        title: "Failed to update vehicle",
-        description: error instanceof Error ? error.message : "An error occurred",
+        title: t("vehicles.vehicleFailedUpdate"),
+        description:
+          error instanceof Error ? error.message : t("vehicles.errorOccurred"),
         variant: "destructive",
       });
     },
@@ -128,7 +145,8 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
     }
   };
 
-  const isPending = createVehicleMutation.isPending || updateVehicleMutation.isPending;
+  const isPending =
+    createVehicleMutation.isPending || updateVehicleMutation.isPending;
 
   return (
     <Form {...form}>
@@ -139,9 +157,12 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Vehicle Name</FormLabel>
+                <FormLabel>{t("vehicles.vehicleNameLabel")}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter vehicle name" {...field} />
+                  <Input
+                    placeholder={t("vehicles.vehicleNamePlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -153,19 +174,22 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Vehicle Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormLabel>{t("vehicles.vehicleTypeLabel")}</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
+                      <SelectValue placeholder={t("vehicles.selectType")} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="sedan">Sedan</SelectItem>
-                    <SelectItem value="suv">SUV</SelectItem>
-                    <SelectItem value="truck">Truck</SelectItem>
-                    <SelectItem value="van">Van</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="sedan">{t("vehicles.sedan")}</SelectItem>
+                    <SelectItem value="suv">{t("vehicles.suv")}</SelectItem>
+                    <SelectItem value="truck">{t("vehicles.truck")}</SelectItem>
+                    <SelectItem value="van">{t("vehicles.van")}</SelectItem>
+                    <SelectItem value="other">{t("vehicles.other")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -180,9 +204,12 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="make"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Make</FormLabel>
+                <FormLabel>{t("vehicles.makeLabel")}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter vehicle make" {...field} />
+                  <Input
+                    placeholder={t("vehicles.makePlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -194,9 +221,12 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="model"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Model</FormLabel>
+                <FormLabel>{t("vehicles.modelLabel")}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter vehicle model" {...field} />
+                  <Input
+                    placeholder={t("vehicles.modelPlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -210,13 +240,13 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="year"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Year</FormLabel>
+                <FormLabel>{t("vehicles.yearLabel")}</FormLabel>
                 <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="Enter year" 
-                    {...field} 
-                    onChange={e => field.onChange(parseInt(e.target.value))} 
+                  <Input
+                    type="number"
+                    placeholder={t("vehicles.yearPlaceholder")}
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
                   />
                 </FormControl>
                 <FormMessage />
@@ -229,13 +259,13 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="mileage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mileage</FormLabel>
+                <FormLabel>{t("vehicles.mileageLabel")}</FormLabel>
                 <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="Enter current mileage" 
-                    {...field} 
-                    onChange={e => field.onChange(parseInt(e.target.value))} 
+                  <Input
+                    type="number"
+                    placeholder={t("vehicles.mileagePlaceholder")}
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
                   />
                 </FormControl>
                 <FormMessage />
@@ -250,9 +280,12 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="vin"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>VIN</FormLabel>
+                <FormLabel>{t("vehicles.vinLabel")}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter VIN number" {...field} />
+                  <Input
+                    placeholder={t("vehicles.vinPlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -264,9 +297,12 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="licensePlate"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>License Plate</FormLabel>
+                <FormLabel>{t("vehicles.licensePlateLabel")}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter license plate" {...field} />
+                  <Input
+                    placeholder={t("vehicles.licensePlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -280,18 +316,22 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="assignedTo"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Assign To Driver</FormLabel>
+                <FormLabel>{t("vehicles.assignDriverLabel")}</FormLabel>
                 <Select
-                  onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
+                  onValueChange={(value) =>
+                    field.onChange(value ? parseInt(value) : undefined)
+                  }
                   defaultValue={field.value?.toString()}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select driver (optional)" />
+                      <SelectValue
+                        placeholder={t("vehicles.selectDriverPlaceholder")}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="">{t("vehicles.unassigned")}</SelectItem>
                     {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id.toString()}>
                         {driver.name}
@@ -309,17 +349,26 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="status"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Status</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormLabel>{t("vehicles.statusLabel")}</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder={t("vehicles.selectStatus")} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="maintenance">In Maintenance</SelectItem>
-                    <SelectItem value="out_of_service">Out of Service</SelectItem>
+                    <SelectItem value="active">
+                      {t("vehicles.active")}
+                    </SelectItem>
+                    <SelectItem value="maintenance">
+                      {t("vehicles.maintenance")}
+                    </SelectItem>
+                    <SelectItem value="out_of_service">
+                      {t("vehicles.outOfService")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -334,7 +383,7 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="nextMaintenanceDate"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Next Maintenance Date</FormLabel>
+                <FormLabel>{t("vehicles.nextMaintDateLabel")}</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
@@ -348,7 +397,7 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
                         {field.value ? (
                           format(field.value, "PPP")
                         ) : (
-                          <span>Pick a date (optional)</span>
+                          <span>{t("vehicles.pickDateOptional")}</span>
                         )}
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                       </Button>
@@ -373,14 +422,18 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
             name="nextMaintenanceMileage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Next Maintenance Mileage</FormLabel>
+                <FormLabel>{t("vehicles.nextMaintMileageLabel")}</FormLabel>
                 <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="Enter mileage for next maintenance" 
-                    {...field} 
+                  <Input
+                    type="number"
+                    placeholder={t("vehicles.nextMaintMileagePlaceholder")}
+                    {...field}
                     value={field.value || ""}
-                    onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)} 
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value ? parseInt(e.target.value) : undefined
+                      )
+                    }
                   />
                 </FormControl>
                 <FormMessage />
@@ -391,16 +444,17 @@ export default function VehicleForm({ users, existingVehicle, onCancel, onSucces
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            {t("vehicles.cancel")}
           </Button>
-          <Button 
-            type="submit" 
-            disabled={isPending}
-          >
+          <Button type="submit" disabled={isPending}>
             {isPending && (
-              <span className="material-icons animate-spin mr-2 text-sm">refresh</span>
+              <span className="material-icons animate-spin mr-2 text-sm">
+                refresh
+              </span>
             )}
-            {existingVehicle ? "Update Vehicle" : "Add Vehicle"}
+            {existingVehicle
+              ? t("vehicles.updateVehicle")
+              : t("vehicles.addVehicle")}
           </Button>
         </div>
       </form>
