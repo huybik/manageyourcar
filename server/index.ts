@@ -1,3 +1,4 @@
+// File: /server/index.ts
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -45,7 +46,7 @@ app.use((req, res, next) => {
     console.error(`Error seeding database: ${error}`);
     log(`Error seeding database: ${error}`);
   }
-  
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -69,11 +70,14 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  // Removed reusePort: true as it can cause ENOTSUP on some systems
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+    },
+    () => {
+      log(`serving on port ${port}`);
+    }
+  );
 })();
