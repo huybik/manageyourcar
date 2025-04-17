@@ -36,6 +36,5 @@
       "dest": "/index.html"
     }
   ],
-  "outputDirectory": "dist/public",
-  "includeFiles": ["sqlite.db"]
+  "outputDirectory": "dist/public"
 }
