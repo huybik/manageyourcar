@@ -1,130 +1,70 @@
 // File: /server/index.ts
+// --- THIS FILE IS PRIMARILY FOR LOCAL DEVELOPMENT ---
+// Vercel uses the files in the /api directory for deployment
+
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { seedDatabase } from "./db-seed";
-import { db } from "./db"; // Import db to potentially run migrations
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import fs from "fs";
-import path from "path";
+// Removed: import { registerRoutes } from "./routes"; // We don't register routes here for Vercel
+import { setupVite, log } from "./vite"; // Keep Vite for local dev HMR
+// Removed: import { seedDatabase } from "./db-seed"; // Seeding/Migration happens in Vercel build
+// Removed: import { db } from "./db";
+// Removed: import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+// Removed: import fs from "fs";
+// Removed: import path from "path";
+import { createServer } from "http";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// --- Local Development Logging Middleware ---
 app.use((req, res, next) => {
+  // ... (keep existing logging middleware if desired for local dev)
   const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
+    log(`${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
   });
-
   next();
 });
 
+// --- Local Development API Simulation (Optional but helpful) ---
+// You *could* re-implement your routes here using app.get, app.post, etc.
+// OR use a tool like `vercel dev` which simulates the Vercel environment locally.
+// For simplicity, we'll rely on `vercel dev` or running API functions manually.
+log(
+  "Local server started. API routes are handled by Vercel (run `vercel dev`)."
+);
+
+// --- Local Development Error Handler ---
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+  log(`Error: ${status} - ${message}`);
+  console.error(err.stack); // Log stack trace locally
+  res.status(status).json({ message });
+});
+
 (async () => {
-  // Run migrations
-  try {
-    const migrationsPath = path.resolve(process.cwd(), "migrations");
-    log(`Attempting to run migrations from: ${migrationsPath}`);
+  const server = createServer(app);
 
-    // Check if the folder exists and has SQL files
-    const migrationFilesExist =
-      fs.existsSync(migrationsPath) &&
-      fs.readdirSync(migrationsPath).some((file) => file.endsWith(".sql"));
-
-    if (!migrationFilesExist) {
-      log(`Migrations folder '${migrationsPath}' is empty or does not exist.`);
-      log(
-        "Please run 'npx drizzle-kit generate' to create migration files based on your schema."
-      );
-    } else {
-      // Apply migrations
-      migrate(db, { migrationsFolder: migrationsPath });
-      log("Migrations applied successfully.");
-    }
-  } catch (error) {
-    console.error(`Error running migrations: ${error}`);
-    log(`Error running migrations: ${error}`);
-    // It's often better to exit if migrations fail during startup
-    process.exit(1);
-  }
-
-  // Seed the database with initial data
-  try {
-    await seedDatabase();
-  } catch (error) {
-    // Add a check for the specific "no such table" error after migration attempt
-    if (error instanceof Error && error.message.includes("no such table")) {
-      log("Database seeding failed because tables are missing.");
-      log(
-        "This likely means migrations did not run correctly or were not generated."
-      );
-      log(
-        "Ensure you have run 'npx drizzle-kit generate' and that migrations apply without errors."
-      );
-    } else {
-      console.error(`Error seeding database: ${error}`);
-      log(`Error seeding database: ${error}`);
-    }
-    // Decide if you want to exit here or continue potentially without seeded data
-    // process.exit(1);
-  }
-
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    // It's often better to log the full error on the server
-    console.error("Unhandled error:", err);
-    // Avoid throwing the error again here unless you have a top-level process error handler
-    // throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
+  // Setup Vite for HMR in development ONLY
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
-    serveStatic(app);
+    // In a real local setup without Vercel, you might serve static files here
+    // But for Vercel deployment focus, this part is less relevant.
+    log(
+      "Running in non-development mode. Static serving handled by Vercel in production."
+    );
+    // Add basic fallback for local testing if needed
+    app.get("*", (req, res) => {
+      res.status(404).send("Not Found (Static serving handled by Vite/Vercel)");
+    });
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      // reusePort: true, // Removed this line to fix ENOTSUP error
-    },
-    () => {
-      log(`serving on port ${port}`);
-    }
-  );
+  const port = process.env.PORT || 5173; // Use a different port for local dev if needed
+  server.listen(port, () => {
+    log(`Local development server listening on http://localhost:${port}`);
+    log("Run `vercel dev` to simulate Vercel environment with API routes.");
+  });
 })();
