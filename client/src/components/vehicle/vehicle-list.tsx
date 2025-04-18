@@ -92,6 +92,12 @@ export default function VehicleList() {
     return format(new Date(date), "MMM dd, yyyy");
   };
 
+  // Function to handle adding a new vehicle
+  const handleAddNewVehicle = () => {
+    setEditVehicleId(null); // Ensure we are not editing
+    setIsAddVehicleOpen(true);
+  };
+
   // Function to handle edit vehicle
   const handleEditVehicle = (id: number) => {
     setEditVehicleId(id);
@@ -101,7 +107,7 @@ export default function VehicleList() {
   // Function to handle dialog close
   const handleDialogClose = () => {
     setIsAddVehicleOpen(false);
-    setEditVehicleId(null);
+    setEditVehicleId(null); // Reset edit state on close
   };
 
   const vehicleToEdit = editVehicleId
@@ -139,7 +145,8 @@ export default function VehicleList() {
           </Select>
         </div>
 
-        <Button onClick={() => setIsAddVehicleOpen(true)}>
+        {/* Use the specific handler for adding */}
+        <Button onClick={handleAddNewVehicle}>
           <span className="material-icons text-sm mr-1">add</span>
           {t("vehicles.addNewVehicle")}
         </Button>
@@ -295,6 +302,7 @@ export default function VehicleList() {
                 : t("vehicles.formAddTitle")}
             </DialogTitle>
           </DialogHeader>
+          {/* Pass users only if available, otherwise pass empty array */}
           <VehicleForm
             users={users || []}
             existingVehicle={vehicleToEdit}

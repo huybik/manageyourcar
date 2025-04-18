@@ -318,10 +318,14 @@ export default function VehicleForm({
               <FormItem>
                 <FormLabel>{t("vehicles.assignDriverLabel")}</FormLabel>
                 <Select
+                  // Use undefined for the Select's value when field.value is undefined/null
+                  value={field.value?.toString() ?? "none"}
                   onValueChange={(value) =>
-                    field.onChange(value ? parseInt(value) : undefined)
+                    // Convert "none" back to undefined for the form state
+                    field.onChange(
+                      value === "none" ? undefined : parseInt(value)
+                    )
                   }
-                  defaultValue={field.value?.toString()}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -331,7 +335,10 @@ export default function VehicleForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">{t("vehicles.unassigned")}</SelectItem>
+                    {/* Use a non-empty string for the "Unassigned" option's value */}
+                    <SelectItem value="none">
+                      {t("vehicles.unassigned")}
+                    </SelectItem>
                     {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id.toString()}>
                         {driver.name}

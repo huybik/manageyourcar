@@ -1,7 +1,7 @@
 /* /client/src/pages/company/dashboard.tsx */
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Vehicle, Part, Maintenance, ActivityLog } from "@shared/schema";
+import { Vehicle, Part, Maintenance, ActivityLog, User } from "@shared/schema"; // Added User
 import StatCard from "@/components/ui/stat-card";
 import MaintenanceList from "@/components/maintenance/maintenance-list";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,19 @@ import { format } from "date-fns";
 import { format as formatTime } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useTranslation } from "react-i18next";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"; // Added Dialog imports
+import VehicleForm from "@/components/vehicle/vehicle-form"; // Added VehicleForm import
 
 export default function CompanyDashboard() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [timeframe, setTimeframe] = useState("30");
+  const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false); // State for dialog
 
   // Fetch data
   const { data: vehicles } = useQuery<Vehicle[]>({
@@ -34,6 +42,11 @@ export default function CompanyDashboard() {
 
   const { data: recentActivity } = useQuery<ActivityLog[]>({
     queryKey: ["/api/activity-logs/recent"],
+  });
+
+  // Fetch users for the VehicleForm
+  const { data: users } = useQuery<User[]>({
+    queryKey: ["/api/users"],
   });
 
   // Calculate stats
@@ -135,6 +148,15 @@ export default function CompanyDashboard() {
   // Critical items for inventory
   const criticalItems = lowStockParts?.slice(0, 3) || [];
 
+  // Handlers for the Add Vehicle Dialog
+  const handleOpenAddVehicleDialog = () => {
+    setIsAddVehicleOpen(true);
+  };
+
+  const handleCloseAddVehicleDialog = () => {
+    setIsAddVehicleOpen(false);
+  };
+
   return (
     <div className="p-4 md:p-6">
       {/* Header */}
@@ -160,9 +182,7 @@ export default function CompanyDashboard() {
           <Button
             size="sm"
             className="flex items-center"
-            onClick={() => {
-              /* TODO: Open add vehicle modal */
-            }}
+            onClick={handleOpenAddVehicleDialog} // Attach handler here
           >
             <span className="material-icons text-sm mr-1">add</span>
             {t("dashboard_company.newVehicle")}
@@ -410,6 +430,21 @@ export default function CompanyDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Add Vehicle Dialog */}
+      <Dialog open={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{t("vehicles.formAddTitle")}</DialogTitle>
+          </DialogHeader>
+          {/* Pass users only if available, otherwise pass empty array */}
+          <VehicleForm
+            users={users || []}
+            onCancel={handleCloseAddVehicleDialog}
+            onSuccess={handleCloseAddVehicleDialog}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

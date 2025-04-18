@@ -24,6 +24,7 @@ export default function VehiclesPage() {
       </div>
 
       {/* Vehicle List Component */}
+      {/* The Add/Edit logic is now handled within VehicleList */}
       <VehicleList />
     </div>
   );

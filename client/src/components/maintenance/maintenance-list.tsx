@@ -249,10 +249,15 @@ export default function MaintenanceList({
                         <img
                           src={
                             task.assignedToUser?.profileImage ||
-                            "https://via.placeholder.com/40"
+                            "https://placehold.co/40" // Updated placeholder URL
                           }
                           alt={task.assignedToUser?.name || "User"}
                           className="w-6 h-6 rounded-full mr-2"
+                          onError={(e) => {
+                            // Fallback if the image fails to load
+                            e.currentTarget.src = "https://placehold.co/40";
+                            e.currentTarget.onerror = null; // Prevent infinite loop
+                          }}
                         />
                         <span className="text-sm text-gray-900">
                           {task.assignedToUser?.name ||
