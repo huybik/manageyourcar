@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -44,6 +51,11 @@ function PartForm({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Fetch standard parts for the dropdown
+  const { data: standardParts } = useQuery<Part[]>({
+    queryKey: ["/api/parts/standard"],
+  });
+
   const form = useForm<PartFormValues>({
     resolver: zodResolver(insertPartSchema),
     defaultValues: {
@@ -56,23 +68,59 @@ function PartForm({
       minimumStock: existingPart?.minimumStock || 10,
       supplier: existingPart?.supplier || "",
       location: existingPart?.location || "",
-      maintenanceIntervalDays: existingPart?.maintenanceIntervalDays || null, // Use null for optional numbers
+      maintenanceIntervalDays: existingPart?.maintenanceIntervalDays || null,
       maintenanceIntervalMileage:
-        existingPart?.maintenanceIntervalMileage || null, // Use null for optional numbers
+        existingPart?.maintenanceIntervalMileage || null,
+      icon: existingPart?.icon || null, // Add icon default
+      isStandard: existingPart?.isStandard ?? false, // Default to false for new custom parts
       // compatibleVehicles: existingPart?.compatibleVehicles || [], // Handle JSON later if needed
     },
   });
+
+  const handleStandardPartSelect = (partId: string) => {
+    const selectedPart = standardParts?.find((p) => p.id === parseInt(partId));
+    if (selectedPart) {
+      // Pre-fill form, but allow user to override quantity, location, etc.
+      // Keep SKU unique by appending something or clearing it
+      form.reset({
+        name: selectedPart.name,
+        sku: "", // Clear SKU or suggest a new one
+        description: selectedPart.description || "",
+        category: selectedPart.category,
+        price: selectedPart.price,
+        quantity: 0, // Start with 0 quantity for the new inventory item
+        minimumStock: selectedPart.minimumStock || 10,
+        supplier: selectedPart.supplier || "",
+        location: "", // Let user specify location
+        maintenanceIntervalDays: selectedPart.maintenanceIntervalDays || null,
+        maintenanceIntervalMileage:
+          selectedPart.maintenanceIntervalMileage || null,
+        icon: selectedPart.icon || null,
+        isStandard: false, // This is now a custom instance based on a standard part
+      });
+      toast({
+        title: t("inventory.standardPartSelected"),
+        description: t("inventory.standardPartSelectedDesc"),
+      });
+    }
+  };
 
   const mutation = useMutation({
     mutationFn: async (data: PartFormValues) => {
       const method = existingPart ? "PUT" : "POST";
       const url = existingPart ? `/api/parts/${existingPart.id}` : "/api/parts";
-      const response = await apiRequest(method, url, data);
+      // Ensure isStandard is false when creating a new part from standard selection
+      const payload = {
+        ...data,
+        isStandard: existingPart?.isStandard ?? false,
+      };
+      const response = await apiRequest(method, url, payload);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/parts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/parts/low-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/parts/standard"] }); // Invalidate standard parts too
       toast({
         title: existingPart
           ? t("inventory.partUpdatedTitle")
@@ -102,6 +150,39 @@ function PartForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {/* Standard Part Selection (only for new parts) */}
+        {!existingPart && standardParts && standardParts.length > 0 && (
+          <FormItem>
+            <FormLabel>{t("inventory.selectStandardPart")}</FormLabel>
+            <Select onValueChange={handleStandardPartSelect}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={t("inventory.selectStandardPartPlaceholder")}
+                  />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {standardParts.map((part) => (
+                  <SelectItem key={part.id} value={part.id.toString()}>
+                    <div className="flex items-center">
+                      {part.icon && (
+                        <span className="material-icons mr-2 text-sm">
+                          {part.icon}
+                        </span>
+                      )}
+                      {part.name} ({part.sku})
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              {t("inventory.selectStandardPartDesc")}
+            </p>
+          </FormItem>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -312,6 +393,26 @@ function PartForm({
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="icon"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("inventory.iconLabel")}</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder={t("inventory.iconPlaceholder")}
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </FormControl>
+              <p className="text-sm text-muted-foreground">
+                {t("inventory.iconDesc")}
+              </p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>

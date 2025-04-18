@@ -149,6 +149,7 @@ export async function seedDatabase() {
       location: "Warehouse A, Shelf 3",
       maintenanceIntervalMileage: 5000, // Renamed from maintenanceInterval
       maintenanceIntervalDays: 180, // Added days interval (6 months)
+      icon: "filter_alt", // Added icon
     })
     .returning();
 
@@ -167,6 +168,7 @@ export async function seedDatabase() {
       location: "Warehouse B, Shelf 1",
       maintenanceIntervalMileage: 20000, // Renamed from maintenanceInterval
       // No day interval specified for this part
+      icon: "disc_full", // Added icon
     })
     .returning();
 
@@ -185,6 +187,7 @@ export async function seedDatabase() {
       location: "Warehouse A, Shelf 5",
       maintenanceIntervalDays: 365, // Added days interval (1 year)
       // No mileage interval specified
+      icon: "cleaning_services", // Added icon
     })
     .returning();
 
@@ -202,6 +205,7 @@ export async function seedDatabase() {
       supplier: "FilterPro",
       location: "Warehouse A, Shelf 4",
       maintenanceIntervalMileage: 15000, // Renamed from maintenanceInterval
+      icon: "air", // Added icon
     })
     .returning();
 

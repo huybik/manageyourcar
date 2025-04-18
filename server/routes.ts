@@ -264,6 +264,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New route for standard parts
+  app.get("/api/parts/standard", async (req, res) => {
+    try {
+      const partsList = await storage.getStandardParts();
+      return res.status(200).json(partsList);
+    } catch (err) {
+      console.error("Error fetching standard parts:", err);
+      return res
+        .status(500)
+        .json({ message: "Failed to fetch standard parts." });
+    }
+  });
+
   app.get("/api/parts/low-stock", async (req, res) => {
     try {
       const partsList = await storage.getLowStockParts();

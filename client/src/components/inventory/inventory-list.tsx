@@ -99,8 +99,13 @@ export default function InventoryList({
                   .map((_, index) => (
                     <tr key={index} className="animate-pulse">
                       <td className="px-6 py-4">
-                        <div className="h-5 bg-gray-200 rounded w-3/4"></div>
-                        <div className="h-4 bg-gray-100 rounded w-1/2 mt-2"></div>
+                        <div className="flex items-center">
+                          <div className="h-6 w-6 bg-gray-200 rounded mr-3"></div>
+                          <div>
+                            <div className="h-5 bg-gray-200 rounded w-3/4"></div>
+                            <div className="h-4 bg-gray-100 rounded w-1/2 mt-2"></div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="h-4 bg-gray-200 rounded w-20"></div>
@@ -126,12 +131,19 @@ export default function InventoryList({
                 filteredParts.map((part) => (
                   <tr key={part.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {part.name}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {t("inventory.skuPrefix")} {part.sku}
+                      <div className="flex items-center">
+                        {part.icon && (
+                          <span className="material-icons text-gray-500 mr-3">
+                            {part.icon}
+                          </span>
+                        )}
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {part.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {t("inventory.skuPrefix")} {part.sku}
+                          </div>
                         </div>
                       </div>
                     </td>

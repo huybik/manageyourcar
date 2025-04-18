@@ -1,4 +1,4 @@
-/* /client/src/components/layout/sidebar.tsx */
+/* /client/src/components/ui/sidebar.tsx */
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -24,7 +24,7 @@ export default function Sidebar() {
 
   const companyLinks = [
     { path: "/", label: t("sidebar.dashboard"), icon: "dashboard" },
-    { path: "/inventory", label: t("sidebar.inventory"), icon: "inventory" },
+    { path: "/inventory", label: t("sidebar.inventory"), icon: "inventory_2" }, // Changed icon
     { path: "/vehicles", label: t("sidebar.vehicles"), icon: "directions_car" },
     { path: "/maintenance", label: t("sidebar.maintenance"), icon: "build" },
     { path: "/orders", label: t("sidebar.orders"), icon: "shopping_cart" },
@@ -34,13 +34,14 @@ export default function Sidebar() {
   const driverLinks = [
     { path: "/", label: t("sidebar.dashboard"), icon: "dashboard" },
     { path: "/maintenance", label: t("sidebar.maintenance"), icon: "build" },
+    // Add link to vehicle details if needed
   ];
 
   const navLinks = isCompanyAdmin ? companyLinks : driverLinks;
 
   const accountLinks = [
     { path: "/settings", label: t("sidebar.settings"), icon: "settings" },
-    { path: "/help", label: t("sidebar.help"), icon: "help" },
+    { path: "/help", label: t("sidebar.help"), icon: "help_outline" }, // Changed icon
   ];
 
   return (

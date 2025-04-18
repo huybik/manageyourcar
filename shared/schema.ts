@@ -79,6 +79,7 @@ export const parts = pgTable("parts", {
   supplier: text("supplier"),
   location: text("location"),
   imageUrl: text("image_url"),
+  icon: text("icon"), // Icon identifier (e.g., Material Icon name)
   // Default lifecycle
   maintenanceIntervalDays: integer("maintenance_interval_days"), // Default days between maintenance/replacement
   maintenanceIntervalMileage: integer("maintenance_interval_mileage"), // Default miles between maintenance/replacement
@@ -94,6 +95,7 @@ export const insertPartSchema = createInsertSchema(parts, {
   maintenanceIntervalMileage: z.number().int().min(0).optional().nullable(),
   compatibleVehicles: z.array(z.string()).optional().nullable(),
   lastRestocked: z.date().or(z.string().datetime()).optional().nullable(), // Add lastRestocked
+  icon: z.string().optional().nullable(), // Add icon to Zod schema
 }).omit({
   id: true,
 });
