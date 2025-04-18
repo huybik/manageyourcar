@@ -19,9 +19,40 @@ import {
   maintenance,
   orders,
   orderItems,
+  Order, // Import Order type
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+
+// Helper function to ensure a value is a Date object or null for nullable fields
+const ensureDateOrNull = (
+  value: string | Date | undefined | null
+): Date | null => {
+  if (value instanceof Date) {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return null;
+  }
+  try {
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  } catch (e) {
+    console.error(`Failed to parse date value: ${value}`, e);
+  }
+  return null; // Return null if parsing fails or value is invalid
+};
+
+// Helper function to ensure a value is a Date object for non-nullable fields
+const ensureDateRequired = (value: string | Date | undefined | null): Date => {
+  const date = ensureDateOrNull(value);
+  if (date === null) {
+    throw new Error(`Invalid or missing required date value: ${value}`);
+  }
+  return date;
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Error handler for validation errors
@@ -338,6 +369,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res
         .status(500)
         .json({ message: "Failed to fetch vehicle parts." });
+    }
+  });
+
+  // Get vehicle parts needing maintenance
+  app.get("/api/vehicle-parts/due", async (req, res) => {
+    try {
+      const vehicleIdsParam = req.query.vehicleIds as string | undefined;
+      let vehicleIds: number[] | undefined;
+      if (vehicleIdsParam) {
+        vehicleIds = vehicleIdsParam
+          .split(",")
+          .map(Number)
+          .filter((id) => !isNaN(id));
+      }
+      const partsDue = await storage.getVehiclePartsNeedingMaintenance(
+        vehicleIds
+      );
+      return res.status(200).json(partsDue);
+    } catch (err) {
+      console.error("Error fetching due vehicle parts:", err);
+      return res
+        .status(500)
+        .json({ message: "Failed to fetch due vehicle parts." });
     }
   });
 
@@ -741,7 +795,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid order ID." });
       }
-      const orderData = insertOrderSchema.partial().parse(req.body);
+      // Use Partial<Order> to allow updating all fields, including generated ones if needed by logic
+      const orderData: Partial<Order> = {
+        ...req.body,
+        // Ensure dates are handled correctly
+        createdDate: req.body.createdDate
+          ? ensureDateRequired(req.body.createdDate)
+          : undefined,
+        orderedDate: req.body.orderedDate
+          ? ensureDateOrNull(req.body.orderedDate)
+          : undefined,
+        receivedDate: req.body.receivedDate
+          ? ensureDateOrNull(req.body.receivedDate)
+          : undefined,
+      };
+
+      // Validate the processed data against a partial schema if necessary,
+      // or rely on the storage layer's validation/handling.
+      // For simplicity, we pass the processed data directly.
+
       const order = await storage.updateOrder(id, orderData);
 
       if (!order) {
@@ -750,7 +822,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.status(200).json(order);
     } catch (err) {
-      return handleValidationError(err, res);
+      // Handle potential errors from ensureDateRequired or storage.updateOrder
+      console.error(`Error updating order ${req.params.id}:`, err);
+      if (err instanceof ZodError) {
+        return handleValidationError(err, res);
+      }
+      return res.status(500).json({ message: "Failed to update order." });
     }
   });
 

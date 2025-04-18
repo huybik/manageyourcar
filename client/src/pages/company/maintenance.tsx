@@ -297,13 +297,17 @@ export default function MaintenancePage() {
 
       {/* Filters */}
       <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <Input
-          className="w-full md:w-80"
-          placeholder={t("maintenance.searchPlaceholder")}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          prefix={<span className="material-icons text-gray-400">search</span>}
-        />
+        <div className="relative w-full md:w-80">
+          <span className="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            search
+          </span>
+          <Input
+            className="w-full pl-10" // Add padding for the icon
+            placeholder={t("maintenance.searchPlaceholder")}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full md:w-40">

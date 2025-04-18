@@ -56,8 +56,9 @@ function PartForm({
       minimumStock: existingPart?.minimumStock || 10,
       supplier: existingPart?.supplier || "",
       location: existingPart?.location || "",
-      maintenanceIntervalDays: existingPart?.maintenanceIntervalDays || undefined,
-      maintenanceIntervalMileage: existingPart?.maintenanceIntervalMileage || undefined,
+      maintenanceIntervalDays: existingPart?.maintenanceIntervalDays || null, // Use null for optional numbers
+      maintenanceIntervalMileage:
+        existingPart?.maintenanceIntervalMileage || null, // Use null for optional numbers
       // compatibleVehicles: existingPart?.compatibleVehicles || [], // Handle JSON later if needed
     },
   });
@@ -73,14 +74,20 @@ function PartForm({
       queryClient.invalidateQueries({ queryKey: ["/api/parts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/parts/low-stock"] });
       toast({
-        title: existingPart ? t("inventory.partUpdatedTitle") : t("inventory.partAddedTitle"),
-        description: existingPart ? t("inventory.partUpdatedDesc") : t("inventory.partAddedDesc"),
+        title: existingPart
+          ? t("inventory.partUpdatedTitle")
+          : t("inventory.partAddedTitle"),
+        description: existingPart
+          ? t("inventory.partUpdatedDesc")
+          : t("inventory.partAddedDesc"),
       });
       onSuccess();
     },
     onError: (error) => {
       toast({
-        title: existingPart ? t("inventory.partUpdateFailedTitle") : t("inventory.partAddFailedTitle"),
+        title: existingPart
+          ? t("inventory.partUpdateFailedTitle")
+          : t("inventory.partAddFailedTitle"),
         description:
           error instanceof Error ? error.message : t("inventory.errorOccurred"),
         variant: "destructive",
@@ -103,7 +110,10 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.partName")}</FormLabel>
                 <FormControl>
-                  <Input placeholder={t("inventory.partNamePlaceholder")} {...field} />
+                  <Input
+                    placeholder={t("inventory.partNamePlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -116,7 +126,10 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.sku")}</FormLabel>
                 <FormControl>
-                  <Input placeholder={t("inventory.skuPlaceholder")} {...field} />
+                  <Input
+                    placeholder={t("inventory.skuPlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -130,7 +143,11 @@ function PartForm({
             <FormItem>
               <FormLabel>{t("inventory.descriptionLabel")}</FormLabel>
               <FormControl>
-                <Textarea placeholder={t("inventory.descriptionPlaceholder")} {...field} />
+                <Textarea
+                  placeholder={t("inventory.descriptionPlaceholder")}
+                  {...field}
+                  value={field.value ?? ""}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -144,7 +161,10 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.category")}</FormLabel>
                 <FormControl>
-                  <Input placeholder={t("inventory.categoryPlaceholder")} {...field} />
+                  <Input
+                    placeholder={t("inventory.categoryPlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -157,7 +177,13 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.price")}</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    {...field}
+                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -172,7 +198,12 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.quantity")}</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -185,14 +216,19 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.minimumStock")}</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="10" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                  <Input
+                    type="number"
+                    placeholder="10"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="maintenanceIntervalDays"
@@ -200,7 +236,17 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.intervalDays")}</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder={t("inventory.intervalDaysPlaceholder")} {...field} onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)} />
+                  <Input
+                    type="number"
+                    placeholder={t("inventory.intervalDaysPlaceholder")}
+                    {...field}
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value ? parseInt(e.target.value) : null
+                      )
+                    }
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -213,7 +259,17 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.intervalMileage")}</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder={t("inventory.intervalMileagePlaceholder")} {...field} onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)} />
+                  <Input
+                    type="number"
+                    placeholder={t("inventory.intervalMileagePlaceholder")}
+                    {...field}
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value ? parseInt(e.target.value) : null
+                      )
+                    }
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -228,7 +284,11 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.supplier")}</FormLabel>
                 <FormControl>
-                  <Input placeholder={t("inventory.supplierPlaceholder")} {...field} />
+                  <Input
+                    placeholder={t("inventory.supplierPlaceholder")}
+                    {...field}
+                    value={field.value ?? ""}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -241,7 +301,11 @@ function PartForm({
               <FormItem>
                 <FormLabel>{t("inventory.location")}</FormLabel>
                 <FormControl>
-                  <Input placeholder={t("inventory.locationPlaceholder")} {...field} />
+                  <Input
+                    placeholder={t("inventory.locationPlaceholder")}
+                    {...field}
+                    value={field.value ?? ""}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -266,7 +330,6 @@ function PartForm({
     </Form>
   );
 }
-
 
 export default function InventoryPage() {
   const { toast } = useToast();
@@ -299,7 +362,7 @@ export default function InventoryPage() {
           </h1>
           <p className="text-gray-500">{t("inventory.description")}</p>
         </div>
-         <Button onClick={handleAddPart}>
+        <Button onClick={handleAddPart}>
           <span className="material-icons text-sm mr-1">add</span>
           {t("inventory.addNewPart")}
         </Button>
@@ -313,9 +376,15 @@ export default function InventoryPage() {
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>{editingPart ? t("inventory.editPartTitle") : t("inventory.addPartTitle")}</DialogTitle>
+            <DialogTitle>
+              {editingPart
+                ? t("inventory.editPartTitle")
+                : t("inventory.addPartTitle")}
+            </DialogTitle>
             <DialogDescription>
-              {editingPart ? t("inventory.editPartDesc") : t("inventory.addPartDesc")}
+              {editingPart
+                ? t("inventory.editPartDesc")
+                : t("inventory.addPartDesc")}
             </DialogDescription>
           </DialogHeader>
           <PartForm

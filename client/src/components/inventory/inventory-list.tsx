@@ -58,13 +58,17 @@ export default function InventoryList({
   return (
     <div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
-        <Input
-          className="w-full md:w-80"
-          placeholder={t("inventory.searchPlaceholder")}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          prefix={<span className="material-icons text-gray-400">search</span>}
-        />
+        <div className="relative w-full md:w-80">
+          <span className="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            search
+          </span>
+          <Input
+            className="w-full pl-10" // Add padding for the icon
+            placeholder={t("inventory.searchPlaceholder")}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         {/* Removed Add button here, handled by parent page */}
         {/* <Button className="w-full md:w-auto" onClick={onAddPart}>
           <span className="material-icons text-sm mr-1">add</span>

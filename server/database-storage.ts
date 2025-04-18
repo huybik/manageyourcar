@@ -48,29 +48,47 @@ import {
   isNotNull, // Use isNotNull
   count as drizzleCount,
   inArray, // Use inArray for checking multiple IDs
+  SQL, // Import SQL type
 } from "drizzle-orm";
 import { IStorage } from "./storage";
+import { PgSelect } from "drizzle-orm/pg-core";
 
 // Helper function to ensure a value is a Date object
+// For non-nullable fields, throws error if input is invalid/null/undefined
+// For nullable fields, returns Date | null
 const ensureDate = (
-  value: string | Date | undefined | null
-): Date | null | undefined => {
-  if (value instanceof Date || value === null || value === undefined) {
+  value: string | Date | undefined | null,
+  isNullable: boolean = false
+): Date | null => {
+  if (value instanceof Date) {
     return value;
   }
+  if (value === null || value === undefined) {
+    if (isNullable) {
+      return null;
+    } else {
+      throw new Error(
+        `Invalid date value: Received ${value} for a non-nullable date field.`
+      );
+    }
+  }
   try {
-    // Attempt to parse the date string
     const date = new Date(value);
-    // Check if the parsed date is valid
     if (!isNaN(date.getTime())) {
       return date;
     }
   } catch (e) {
-    // Log parsing errors if necessary, but don't crash
     console.error(`Failed to parse date value: ${value}`, e);
   }
-  // Return undefined if parsing fails or the original value was invalid in context
-  return undefined;
+
+  // If parsing failed or value was invalid
+  if (isNullable) {
+    return null; // Allow null for nullable fields if input is bad
+  } else {
+    throw new Error(
+      `Invalid date value: Could not parse '${value}' for a non-nullable date field.`
+    );
+  }
 };
 
 // Helper to calculate next maintenance date based on interval and last date
@@ -239,12 +257,15 @@ export class DatabaseStorage implements IStorage {
   ): Promise<VehiclePart> {
     const dataToInsert = {
       ...insertVehiclePart,
-      installationDate: ensureDate(insertVehiclePart.installationDate),
-      lastMaintenanceDate: ensureDate(insertVehiclePart.lastMaintenanceDate),
+      // Ensure non-nullable date is valid
+      installationDate: ensureDate(insertVehiclePart.installationDate, false),
+      // Ensure nullable date is valid or null
+      lastMaintenanceDate: ensureDate(
+        insertVehiclePart.lastMaintenanceDate,
+        true
+      ),
     };
-    if (!dataToInsert.installationDate) {
-      throw new Error("Installation date is required for vehicle parts.");
-    }
+    // installationDate is checked inside ensureDate for non-nullable
     const result = await db
       .insert(vehicleParts)
       .values(dataToInsert)
@@ -259,22 +280,37 @@ export class DatabaseStorage implements IStorage {
     id: number,
     vehiclePart: Partial<InsertVehiclePart>
   ): Promise<VehiclePart | undefined> {
-    const dataToUpdate = {
-      ...vehiclePart,
-      installationDate: ensureDate(vehiclePart.installationDate),
-      lastMaintenanceDate: ensureDate(vehiclePart.lastMaintenanceDate),
-    };
-    // Remove undefined date properties
-    if (
-      dataToUpdate.installationDate === undefined &&
-      "installationDate" in vehiclePart
-    )
-      delete dataToUpdate.installationDate;
-    if (
-      dataToUpdate.lastMaintenanceDate === undefined &&
-      "lastMaintenanceDate" in vehiclePart
-    )
-      delete dataToUpdate.lastMaintenanceDate;
+    const dataToUpdate: Partial<VehiclePart> = {}; // Build the update object carefully
+
+    // Process each field from the input partial
+    for (const key in vehiclePart) {
+      if (Object.prototype.hasOwnProperty.call(vehiclePart, key)) {
+        const value = vehiclePart[key as keyof typeof vehiclePart];
+
+        if (key === "installationDate") {
+          try {
+            // installationDate is notNull, ensureDate will throw if invalid/null
+            dataToUpdate[key] = ensureDate(value, false);
+          } catch (error) {
+            // Optionally log or handle the error, but skip updating this field
+            console.warn(
+              `Skipping update for non-nullable field '${key}' due to invalid value: ${value}`
+            );
+          }
+        } else if (key === "lastMaintenanceDate") {
+          // lastMaintenanceDate is nullable
+          dataToUpdate[key] = ensureDate(value, true);
+        } else if (value !== undefined) {
+          // Copy other defined properties
+          (dataToUpdate as any)[key] = value;
+        }
+      }
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      // No valid fields to update
+      return this.getVehiclePart(id); // Return existing data
+    }
 
     const result = await db
       .update(vehicleParts)
@@ -298,7 +334,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<VehiclePart[]> {
     const today = new Date();
 
-    // Fetch relevant vehicle parts, potentially filtered by vehicle IDs
+    // Base query
     let query = db
       .select({
         vp: vehicleParts,
@@ -309,11 +345,15 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(parts, eq(vehicleParts.partId, parts.id))
       .innerJoin(vehicles, eq(vehicleParts.vehicleId, vehicles.id));
 
+    // Conditionally apply where clause
+    let finalQuery: PgSelect;
     if (vehicleIds && vehicleIds.length > 0) {
-      query = query.where(inArray(vehicleParts.vehicleId, vehicleIds));
+      finalQuery = query.where(inArray(vehicleParts.vehicleId, vehicleIds));
+    } else {
+      finalQuery = query; // No where clause needed if no IDs provided
     }
 
-    const results = await query;
+    const results = await finalQuery;
 
     const partsNeedingMaintenance: VehiclePart[] = [];
 
@@ -391,8 +431,10 @@ export class DatabaseStorage implements IStorage {
       .from(parts)
       .where(
         and(
+          isNotNull(parts.quantity), // Ensure quantity is not null
+          isNotNull(parts.minimumStock), // Ensure minimumStock is not null
           lte(parts.quantity, parts.minimumStock), // Use less than or equal to match client logic
-          gt(parts.minimumStock, 0) // Ensure minimum stock is defined
+          gt(parts.minimumStock, 0) // Ensure minimum stock is defined and positive
         )
       );
   }
@@ -400,7 +442,7 @@ export class DatabaseStorage implements IStorage {
   async createPart(insertPart: InsertPart): Promise<Part> {
     const dataToInsert = {
       ...insertPart,
-      lastRestocked: ensureDate(insertPart.lastRestocked),
+      lastRestocked: ensureDate(insertPart.lastRestocked, true), // Nullable
     };
     const result = await db.insert(parts).values(dataToInsert).returning();
     if (result.length === 0) {
@@ -413,13 +455,22 @@ export class DatabaseStorage implements IStorage {
     id: number,
     part: Partial<InsertPart>
   ): Promise<Part | undefined> {
-    const dataToUpdate = {
-      ...part,
-      lastRestocked: ensureDate(part.lastRestocked),
-    };
-    // Remove undefined date properties
-    if (dataToUpdate.lastRestocked === undefined && "lastRestocked" in part)
-      delete dataToUpdate.lastRestocked;
+    const dataToUpdate: Partial<Part> = {};
+
+    for (const key in part) {
+      if (Object.prototype.hasOwnProperty.call(part, key)) {
+        const value = part[key as keyof typeof part];
+        if (key === "lastRestocked") {
+          dataToUpdate[key] = ensureDate(value, true);
+        } else if (value !== undefined) {
+          (dataToUpdate as any)[key] = value;
+        }
+      }
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return this.getPart(id);
+    }
 
     const result = await db
       .update(parts)
@@ -457,7 +508,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<ServiceSchedule> {
     const dataToInsert = {
       ...insertSchedule,
-      lastServiceDate: ensureDate(insertSchedule.lastServiceDate),
+      lastServiceDate: ensureDate(insertSchedule.lastServiceDate, true), // Nullable
     };
     const result = await db
       .insert(serviceSchedules)
@@ -473,15 +524,22 @@ export class DatabaseStorage implements IStorage {
     id: number,
     schedule: Partial<InsertServiceSchedule>
   ): Promise<ServiceSchedule | undefined> {
-    const dataToUpdate = {
-      ...schedule,
-      lastServiceDate: ensureDate(schedule.lastServiceDate),
-    };
-    if (
-      dataToUpdate.lastServiceDate === undefined &&
-      "lastServiceDate" in schedule
-    )
-      delete dataToUpdate.lastServiceDate;
+    const dataToUpdate: Partial<ServiceSchedule> = {};
+
+    for (const key in schedule) {
+      if (Object.prototype.hasOwnProperty.call(schedule, key)) {
+        const value = schedule[key as keyof typeof schedule];
+        if (key === "lastServiceDate") {
+          dataToUpdate[key] = ensureDate(value, true);
+        } else if (value !== undefined) {
+          (dataToUpdate as any)[key] = value;
+        }
+      }
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return this.getServiceSchedule(id);
+    }
 
     const result = await db
       .update(serviceSchedules)
@@ -513,11 +571,14 @@ export class DatabaseStorage implements IStorage {
       .from(serviceSchedules)
       .innerJoin(vehicles, eq(serviceSchedules.vehicleId, vehicles.id));
 
+    let finalQuery: PgSelect;
     if (vehicleIds && vehicleIds.length > 0) {
-      query = query.where(inArray(serviceSchedules.vehicleId, vehicleIds));
+      finalQuery = query.where(inArray(serviceSchedules.vehicleId, vehicleIds));
+    } else {
+      finalQuery = query;
     }
 
-    const results = await query;
+    const results = await finalQuery;
     const schedulesNeedingMaintenance: ServiceSchedule[] = [];
 
     for (const { ss, v } of results) {
@@ -622,15 +683,10 @@ export class DatabaseStorage implements IStorage {
   async createMaintenance(
     insertMaintenance: InsertMaintenance
   ): Promise<Maintenance> {
-    const dueDate = ensureDate(insertMaintenance.dueDate);
-    // Status should be set based on context (e.g., 'pending' for scheduled, 'pending' for unscheduled needing approval)
-    const status = insertMaintenance.status || "pending"; // Default to pending
-
     const dataToInsert = {
       ...insertMaintenance,
-      dueDate: dueDate, // Use the ensured Date object or null
-      status: status,
-      // Ensure default for isUnscheduled if not provided
+      dueDate: ensureDate(insertMaintenance.dueDate, true), // Nullable
+      status: insertMaintenance.status || "pending", // Default to pending
       isUnscheduled: insertMaintenance.isUnscheduled ?? false,
     };
 
@@ -646,13 +702,21 @@ export class DatabaseStorage implements IStorage {
 
   async updateMaintenance(
     id: number,
-    maintenanceData: Partial<InsertMaintenance>
+    maintenanceData: Partial<Maintenance> // Use Partial<Maintenance> to allow updating completedDate etc.
   ): Promise<Maintenance | undefined> {
-    const dataToUpdate: Partial<Maintenance> = {
-      ...maintenanceData,
-      dueDate: ensureDate(maintenanceData.dueDate),
-      completedDate: ensureDate(maintenanceData.completedDate),
-    };
+    const dataToUpdate: Partial<Maintenance> = {};
+
+    for (const key in maintenanceData) {
+      if (Object.prototype.hasOwnProperty.call(maintenanceData, key)) {
+        const value = maintenanceData[key as keyof typeof maintenanceData];
+
+        if (key === "dueDate" || key === "completedDate") {
+          dataToUpdate[key] = ensureDate(value, true); // Nullable
+        } else if (value !== undefined) {
+          (dataToUpdate as any)[key] = value;
+        }
+      }
+    }
 
     // If status is changing to completed, set completedDate and completedMileage if not already set
     if (maintenanceData.status === "completed") {
@@ -671,14 +735,9 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Remove undefined date properties
-    if (dataToUpdate.dueDate === undefined && "dueDate" in maintenanceData)
-      delete dataToUpdate.dueDate;
-    if (
-      dataToUpdate.completedDate === undefined &&
-      "completedDate" in maintenanceData
-    )
-      delete dataToUpdate.completedDate;
+    if (Object.keys(dataToUpdate).length === 0) {
+      return this.getMaintenance(id);
+    }
 
     const result = await db
       .update(maintenance)
@@ -774,14 +833,9 @@ export class DatabaseStorage implements IStorage {
   async createNotification(
     insertNotification: InsertNotification
   ): Promise<Notification> {
-    const createdAt = ensureDate(insertNotification.createdAt);
-    if (!createdAt) {
-      // createdAt is notNull, so we must provide a valid date
-      throw new Error("Invalid or missing creation date for notification.");
-    }
     const dataToInsert = {
       ...insertNotification,
-      createdAt: createdAt, // Use the ensured Date object
+      createdAt: ensureDate(insertNotification.createdAt, false), // Not nullable
     };
     const result = await db
       .insert(notifications)
@@ -797,21 +851,28 @@ export class DatabaseStorage implements IStorage {
     id: number,
     notification: Partial<InsertNotification>
   ): Promise<Notification | undefined> {
-    // Use Partial<Notification> to allow updating all fields including createdAt
-    const dataToUpdate: Partial<Notification> = {
-      ...notification,
-      createdAt: ensureDate(notification.createdAt),
-    };
-    // Remove undefined date properties only if the key was present in the input
-    // Since createdAt is notNull, we should probably prevent setting it to null/undefined here.
-    // If ensureDate returns undefined/null, it means the input was invalid.
-    if (dataToUpdate.createdAt === undefined && "createdAt" in notification) {
-      // Throw error or skip updating createdAt
-      // For now, let's skip updating it if the provided value was invalid
-      delete dataToUpdate.createdAt;
-    } else if (dataToUpdate.createdAt === null) {
-      // Should not happen if ensureDate works correctly for a notNull field, but handle defensively
-      delete dataToUpdate.createdAt; // Don't set notNull field to null
+    const dataToUpdate: Partial<Notification> = {};
+
+    for (const key in notification) {
+      if (Object.prototype.hasOwnProperty.call(notification, key)) {
+        const value = notification[key as keyof typeof notification];
+        if (key === "createdAt") {
+          try {
+            // createdAt is notNull
+            dataToUpdate[key] = ensureDate(value, false);
+          } catch (error) {
+            console.warn(
+              `Skipping update for non-nullable field '${key}' due to invalid value: ${value}`
+            );
+          }
+        } else if (value !== undefined) {
+          (dataToUpdate as any)[key] = value;
+        }
+      }
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return this.getNotification(id);
     }
 
     const result = await db
@@ -857,14 +918,10 @@ export class DatabaseStorage implements IStorage {
     const orderNumber = `PO-${format(new Date(), "yyyy")}-${String(
       nextId
     ).padStart(4, "0")}`;
-    const createdDate = ensureDate(insertOrder.createdDate);
-    if (!createdDate) {
-      // createdDate is notNull
-      throw new Error("Invalid or missing creation date for order.");
-    }
+
     const orderToInsert = {
       ...insertOrder,
-      createdDate: createdDate, // Use ensured Date object
+      createdDate: ensureDate(insertOrder.createdDate, false), // Not nullable
       orderNumber,
     };
 
@@ -877,30 +934,33 @@ export class DatabaseStorage implements IStorage {
 
   async updateOrder(
     id: number,
-    order: Partial<Order>
+    order: Partial<Order> // Use Partial<Order> to allow updating all fields
   ): Promise<Order | undefined> {
-    // Use Partial<Order> to allow updating all fields
-    const dataToUpdate: Partial<Order> = {
-      ...order,
-      createdDate: ensureDate(order.createdDate),
-      orderedDate: ensureDate(order.orderedDate),
-      receivedDate: ensureDate(order.receivedDate),
-    };
-    // Remove undefined/null date properties if the column is notNull
-    if (
-      (dataToUpdate.createdDate === undefined ||
-        dataToUpdate.createdDate === null) &&
-      "createdDate" in order
-    ) {
-      // createdDate is notNull, so we cannot set it to null/undefined
-      // Throw error or skip update for this field
-      delete dataToUpdate.createdDate; // Skip update if invalid
+    const dataToUpdate: Partial<Order> = {};
+
+    for (const key in order) {
+      if (Object.prototype.hasOwnProperty.call(order, key)) {
+        const value = order[key as keyof typeof order];
+        if (key === "createdDate") {
+          try {
+            // createdDate is notNull
+            dataToUpdate[key] = ensureDate(value, false);
+          } catch (error) {
+            console.warn(
+              `Skipping update for non-nullable field '${key}' due to invalid value: ${value}`
+            );
+          }
+        } else if (key === "orderedDate" || key === "receivedDate") {
+          dataToUpdate[key] = ensureDate(value, true); // Nullable
+        } else if (value !== undefined) {
+          (dataToUpdate as any)[key] = value;
+        }
+      }
     }
-    // For nullable fields, remove only if undefined was result of invalid input
-    if (dataToUpdate.orderedDate === undefined && "orderedDate" in order)
-      delete dataToUpdate.orderedDate;
-    if (dataToUpdate.receivedDate === undefined && "receivedDate" in order)
-      delete dataToUpdate.receivedDate;
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return this.getOrder(id);
+    }
 
     const result = await db
       .update(orders)
@@ -990,14 +1050,9 @@ export class DatabaseStorage implements IStorage {
   async createActivityLog(
     insertActivityLog: InsertActivityLog
   ): Promise<ActivityLog> {
-    const timestamp = ensureDate(insertActivityLog.timestamp);
-    if (!timestamp) {
-      // timestamp is notNull
-      throw new Error("Invalid or missing timestamp for activity log.");
-    }
     const dataToInsert = {
       ...insertActivityLog,
-      timestamp: timestamp, // Use ensured Date object
+      timestamp: ensureDate(insertActivityLog.timestamp, false), // Not nullable
     };
     const result = await db
       .insert(activityLogs)

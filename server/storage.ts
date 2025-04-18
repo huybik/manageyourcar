@@ -33,6 +33,36 @@ import {
 } from "@shared/schema";
 import { format, addDays } from "date-fns";
 
+// Helper function to ensure a value is a Date object or null for nullable fields
+const ensureDateOrNull = (
+  value: string | Date | undefined | null
+): Date | null => {
+  if (value instanceof Date) {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return null;
+  }
+  try {
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  } catch (e) {
+    console.error(`Failed to parse date value: ${value}`, e);
+  }
+  return null; // Return null if parsing fails or value is invalid
+};
+
+// Helper function to ensure a value is a Date object for non-nullable fields
+const ensureDateRequired = (value: string | Date | undefined | null): Date => {
+  const date = ensureDateOrNull(value);
+  if (date === null) {
+    throw new Error(`Invalid or missing required date value: ${value}`);
+  }
+  return date;
+};
+
 export interface IStorage {
   // Users
   getUser(id: number): Promise<User | undefined>;
@@ -103,7 +133,7 @@ export interface IStorage {
   createMaintenance(maintenance: InsertMaintenance): Promise<Maintenance>;
   updateMaintenance(
     id: number,
-    maintenance: Partial<InsertMaintenance>
+    maintenance: Partial<Maintenance> // Changed to Partial<Maintenance>
   ): Promise<Maintenance | undefined>;
   approveMaintenance(
     id: number,
@@ -122,7 +152,7 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   updateNotification(
     id: number,
-    notification: Partial<InsertNotification>
+    notification: Partial<Notification> // Changed to Partial<Notification>
   ): Promise<Notification | undefined>;
   markNotificationAsRead(id: number): Promise<Notification | undefined>;
   deleteNotification(id: number): Promise<boolean>;
@@ -133,7 +163,7 @@ export interface IStorage {
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(
     id: number,
-    order: Partial<InsertOrder>
+    order: Partial<Order> // Changed to Partial<Order>
   ): Promise<Order | undefined>;
   deleteOrder(id: number): Promise<boolean>;
 
@@ -235,7 +265,8 @@ export class MemStorage implements IStorage {
   }
 
   // Seed the database with initial data
-  private seedData() {
+  private async seedData() {
+    // Make seedData async
     // Create admin user
     const adminUser: InsertUser = {
       username: "admin",
@@ -246,7 +277,7 @@ export class MemStorage implements IStorage {
       profileImage:
         "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80",
     };
-    const admin = this.createUser(adminUser);
+    const admin = await this.createUser(adminUser); // Use await
 
     // Create drivers
     const driver1: InsertUser = {
@@ -258,7 +289,7 @@ export class MemStorage implements IStorage {
       profileImage:
         "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80",
     };
-    const mike = this.createUser(driver1);
+    const mike = await this.createUser(driver1); // Use await
 
     const driver2: InsertUser = {
       username: "slee",
@@ -269,7 +300,7 @@ export class MemStorage implements IStorage {
       profileImage:
         "https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80",
     };
-    const sarah = this.createUser(driver2);
+    const sarah = await this.createUser(driver2); // Use await
 
     const driver3: InsertUser = {
       username: "dchen",
@@ -280,7 +311,7 @@ export class MemStorage implements IStorage {
       profileImage:
         "https://images.unsplash.com/photo-1528892952291-009c663ce843?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80",
     };
-    const david = this.createUser(driver3);
+    const david = await this.createUser(driver3); // Use await
 
     // Create vehicles
     const truck: InsertVehicle = {
@@ -295,7 +326,7 @@ export class MemStorage implements IStorage {
       assignedTo: mike.id,
       status: "active",
     };
-    const truckEntity = this.createVehicle(truck);
+    const truckEntity = await this.createVehicle(truck); // Use await
 
     const sedan: InsertVehicle = {
       name: "Sedan #087",
@@ -309,7 +340,7 @@ export class MemStorage implements IStorage {
       assignedTo: sarah.id,
       status: "active",
     };
-    const sedanEntity = this.createVehicle(sedan);
+    const sedanEntity = await this.createVehicle(sedan); // Use await
 
     const van: InsertVehicle = {
       name: "Van #042",
@@ -323,7 +354,7 @@ export class MemStorage implements IStorage {
       assignedTo: david.id,
       status: "active",
     };
-    const vanEntity = this.createVehicle(van);
+    const vanEntity = await this.createVehicle(van); // Use await
 
     // Create parts
     const oilFilters: InsertPart = {
@@ -341,7 +372,7 @@ export class MemStorage implements IStorage {
       maintenanceIntervalDays: 180, // 6 months
       maintenanceIntervalMileage: 5000,
     };
-    const oilFilterPart = this.createPart(oilFilters);
+    const oilFilterPart = await this.createPart(oilFilters); // Use await
 
     const brakePads: InsertPart = {
       name: "Brake Pads (Front)",
@@ -357,7 +388,7 @@ export class MemStorage implements IStorage {
       lastRestocked: new Date("2023-01-05"),
       maintenanceIntervalMileage: 30000,
     };
-    const brakePadPart = this.createPart(brakePads);
+    const brakePadPart = await this.createPart(brakePads); // Use await
 
     const wiperBlades: InsertPart = {
       name: 'Wiper Blades (20")',
@@ -373,7 +404,7 @@ export class MemStorage implements IStorage {
       lastRestocked: new Date("2023-01-08"),
       maintenanceIntervalDays: 365, // 1 year
     };
-    const wiperBladePart = this.createPart(wiperBlades);
+    const wiperBladePart = await this.createPart(wiperBlades); // Use await
 
     const airFilters: InsertPart = {
       name: "Air Filters",
@@ -389,10 +420,11 @@ export class MemStorage implements IStorage {
       lastRestocked: new Date("2023-01-12"),
       maintenanceIntervalMileage: 15000,
     };
-    const airFilterPart = this.createPart(airFilters);
+    const airFilterPart = await this.createPart(airFilters); // Use await
 
     // Associate parts with vehicles
-    this.createVehiclePart({
+    await this.createVehiclePart({
+      // Use await
       vehicleId: truckEntity.id,
       partId: oilFilterPart.id,
       installationDate: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000), // 100 days ago
@@ -400,19 +432,22 @@ export class MemStorage implements IStorage {
       lastMaintenanceDate: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000), // Same as install for simplicity
       lastMaintenanceMileage: 35000,
     });
-    this.createVehiclePart({
+    await this.createVehiclePart({
+      // Use await
       vehicleId: truckEntity.id,
       partId: brakePadPart.id,
       installationDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000), // 200 days ago
       installationMileage: 15000,
     });
-    this.createVehiclePart({
+    await this.createVehiclePart({
+      // Use await
       vehicleId: sedanEntity.id,
       partId: wiperBladePart.id,
       installationDate: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000), // 150 days ago
       installationMileage: 10000,
     });
-    this.createVehiclePart({
+    await this.createVehiclePart({
+      // Use await
       vehicleId: vanEntity.id,
       partId: airFilterPart.id,
       installationDate: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000), // 50 days ago
@@ -420,21 +455,24 @@ export class MemStorage implements IStorage {
     });
 
     // Create Service Schedules
-    this.createServiceSchedule({
+    await this.createServiceSchedule({
+      // Use await
       vehicleId: truckEntity.id,
       description: "6-Month General Checkup",
       frequencyDays: 180,
       lastServiceDate: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000), // 100 days ago
       lastServiceMileage: 35000,
     });
-    this.createServiceSchedule({
+    await this.createServiceSchedule({
+      // Use await
       vehicleId: sedanEntity.id,
       description: "Annual Inspection",
       frequencyDays: 365,
       lastServiceDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000), // 200 days ago
       lastServiceMileage: 10000,
     });
-    this.createServiceSchedule({
+    await this.createServiceSchedule({
+      // Use await
       vehicleId: vanEntity.id,
       description: "10,000 Mile Service",
       frequencyMileage: 10000,
@@ -454,7 +492,7 @@ export class MemStorage implements IStorage {
       notes: "Use synthetic oil for this vehicle",
       isUnscheduled: false,
     };
-    const oilChangeTask = this.createMaintenance(oilChange);
+    const oilChangeTask = await this.createMaintenance(oilChange); // Use await
 
     const brakeInspection: InsertMaintenance = {
       vehicleId: sedanEntity.id,
@@ -467,7 +505,7 @@ export class MemStorage implements IStorage {
       notes: "Customer reported squealing noise when braking",
       isUnscheduled: false,
     };
-    const brakeInspectionTask = this.createMaintenance(brakeInspection);
+    const brakeInspectionTask = await this.createMaintenance(brakeInspection); // Use await
 
     const tireRotation: InsertMaintenance = {
       vehicleId: vanEntity.id,
@@ -481,7 +519,7 @@ export class MemStorage implements IStorage {
       notes: "Also check for unusual wear patterns",
       isUnscheduled: false,
     };
-    const tireRotationTask = this.createMaintenance(tireRotation);
+    const tireRotationTask = await this.createMaintenance(tireRotation); // Use await
 
     // Unscheduled maintenance example
     const unscheduledRepair: InsertMaintenance = {
@@ -495,10 +533,11 @@ export class MemStorage implements IStorage {
       isUnscheduled: true,
       approvalStatus: "pending",
     };
-    this.createMaintenance(unscheduledRepair);
+    const unscheduledTask = await this.createMaintenance(unscheduledRepair); // Use await
 
     // Create notifications
-    this.createNotification({
+    await this.createNotification({
+      // Use await
       userId: mike.id,
       title: "Maintenance Due Soon",
       message: "Oil change due in 7 days for Truck #103",
@@ -509,7 +548,8 @@ export class MemStorage implements IStorage {
       link: `/maintenance`, // Link to driver maintenance page
     });
 
-    this.createNotification({
+    await this.createNotification({
+      // Use await
       userId: sarah.id,
       title: "Urgent Maintenance Scheduled",
       message:
@@ -521,7 +561,8 @@ export class MemStorage implements IStorage {
       link: `/maintenance`,
     });
 
-    this.createNotification({
+    await this.createNotification({
+      // Use await
       userId: david.id,
       title: "Overdue Maintenance",
       message: "Tire rotation is now overdue for Van #042",
@@ -532,14 +573,15 @@ export class MemStorage implements IStorage {
       link: `/maintenance`,
     });
 
-    this.createNotification({
+    await this.createNotification({
+      // Use await
       userId: admin.id, // Notify admin about unscheduled request
       title: "Maintenance Approval Required",
       message:
         "Mike Johnson reported an issue with Truck #103 (Check Engine Light)",
       type: "maintenance_approval_request",
       createdAt: new Date(),
-      relatedId: 4, // ID of the unscheduled maintenance task
+      relatedId: unscheduledTask.id, // Use the ID from the created task
       relatedType: "maintenance",
       link: `/maintenance`, // Link to company maintenance page
     });
@@ -553,7 +595,7 @@ export class MemStorage implements IStorage {
       relatedId: 1,
       relatedType: "vehicle",
     };
-    this.createActivityLog(activity1);
+    await this.createActivityLog(activity1); // Use await
 
     const activity2: InsertActivityLog = {
       userId: sarah.id,
@@ -563,7 +605,7 @@ export class MemStorage implements IStorage {
       relatedId: null,
       relatedType: "inventory",
     };
-    this.createActivityLog(activity2);
+    await this.createActivityLog(activity2); // Use await
 
     const activity3: InsertActivityLog = {
       userId: admin.id,
@@ -574,7 +616,7 @@ export class MemStorage implements IStorage {
       relatedId: null,
       relatedType: "order",
     };
-    this.createActivityLog(activity3);
+    await this.createActivityLog(activity3); // Use await
 
     const activity4: InsertActivityLog = {
       userId: david.id,
@@ -584,7 +626,7 @@ export class MemStorage implements IStorage {
       relatedId: 3,
       relatedType: "vehicle",
     };
-    this.createActivityLog(activity4);
+    await this.createActivityLog(activity4); // Use await
   }
 
   // User methods
@@ -709,12 +751,14 @@ export class MemStorage implements IStorage {
     const vehiclePart: VehiclePart = {
       ...insertVehiclePart,
       id,
-      isCustom: insertVehiclePart.isCustom ?? false,
+      installationDate: ensureDateRequired(insertVehiclePart.installationDate), // Ensure Date
       customMaintenanceIntervalDays:
         insertVehiclePart.customMaintenanceIntervalDays || null,
       customMaintenanceIntervalMileage:
         insertVehiclePart.customMaintenanceIntervalMileage || null,
-      lastMaintenanceDate: insertVehiclePart.lastMaintenanceDate || null,
+      lastMaintenanceDate: ensureDateOrNull(
+        insertVehiclePart.lastMaintenanceDate
+      ), // Ensure Date or null
       lastMaintenanceMileage: insertVehiclePart.lastMaintenanceMileage || null,
       notes: insertVehiclePart.notes || null,
     };
@@ -729,7 +773,21 @@ export class MemStorage implements IStorage {
     const existingVehiclePart = this.vehicleParts.get(id);
     if (!existingVehiclePart) return undefined;
 
-    const updatedVehiclePart = { ...existingVehiclePart, ...vehiclePart };
+    const updatedData: Partial<VehiclePart> = {};
+    for (const key in vehiclePart) {
+      if (Object.prototype.hasOwnProperty.call(vehiclePart, key)) {
+        const value = vehiclePart[key as keyof typeof vehiclePart];
+        if (key === "installationDate" && value !== undefined) {
+          updatedData[key] = ensureDateRequired(value);
+        } else if (key === "lastMaintenanceDate" && value !== undefined) {
+          updatedData[key] = ensureDateOrNull(value);
+        } else if (value !== undefined) {
+          (updatedData as any)[key] = value;
+        }
+      }
+    }
+
+    const updatedVehiclePart = { ...existingVehiclePart, ...updatedData };
     this.vehicleParts.set(id, updatedVehiclePart);
     return updatedVehiclePart;
   }
@@ -824,8 +882,8 @@ export class MemStorage implements IStorage {
 
   async getLowStockParts(): Promise<Part[]> {
     return Array.from(this.parts.values()).filter((part) => {
-      const quantity = part.quantity || 0;
-      const minStock = part.minimumStock || 10;
+      const quantity = part.quantity ?? 0;
+      const minStock = part.minimumStock ?? 10;
       return quantity <= minStock; // Use <= to match client logic
     });
   }
@@ -844,7 +902,7 @@ export class MemStorage implements IStorage {
       imageUrl: insertPart.imageUrl || null,
       maintenanceIntervalDays: insertPart.maintenanceIntervalDays || null,
       maintenanceIntervalMileage: insertPart.maintenanceIntervalMileage || null,
-      lastRestocked: insertPart.lastRestocked || null,
+      lastRestocked: ensureDateOrNull(insertPart.lastRestocked), // Ensure Date or null
       compatibleVehicles: insertPart.compatibleVehicles || null,
     };
     this.parts.set(id, part);
@@ -858,7 +916,19 @@ export class MemStorage implements IStorage {
     const existingPart = this.parts.get(id);
     if (!existingPart) return undefined;
 
-    const updatedPart = { ...existingPart, ...part };
+    const updatedData: Partial<Part> = {};
+    for (const key in part) {
+      if (Object.prototype.hasOwnProperty.call(part, key)) {
+        const value = part[key as keyof typeof part];
+        if (key === "lastRestocked" && value !== undefined) {
+          updatedData[key] = ensureDateOrNull(value);
+        } else if (value !== undefined) {
+          (updatedData as any)[key] = value;
+        }
+      }
+    }
+
+    const updatedPart = { ...existingPart, ...updatedData };
     this.parts.set(id, updatedPart);
     return updatedPart;
   }
@@ -889,7 +959,7 @@ export class MemStorage implements IStorage {
       id,
       frequencyDays: insertSchedule.frequencyDays || null,
       frequencyMileage: insertSchedule.frequencyMileage || null,
-      lastServiceDate: insertSchedule.lastServiceDate || null,
+      lastServiceDate: ensureDateOrNull(insertSchedule.lastServiceDate), // Ensure Date or null
       lastServiceMileage: insertSchedule.lastServiceMileage || null,
       notes: insertSchedule.notes || null,
     };
@@ -904,7 +974,19 @@ export class MemStorage implements IStorage {
     const existingSchedule = this.serviceSchedules.get(id);
     if (!existingSchedule) return undefined;
 
-    const updatedSchedule = { ...existingSchedule, ...schedule };
+    const updatedData: Partial<ServiceSchedule> = {};
+    for (const key in schedule) {
+      if (Object.prototype.hasOwnProperty.call(schedule, key)) {
+        const value = schedule[key as keyof typeof schedule];
+        if (key === "lastServiceDate" && value !== undefined) {
+          updatedData[key] = ensureDateOrNull(value);
+        } else if (value !== undefined) {
+          (updatedData as any)[key] = value;
+        }
+      }
+    }
+
+    const updatedSchedule = { ...existingSchedule, ...updatedData };
     this.serviceSchedules.set(id, updatedSchedule);
     return updatedSchedule;
   }
@@ -1014,7 +1096,7 @@ export class MemStorage implements IStorage {
       vehiclePartId: insertMaintenance.vehiclePartId || null,
       serviceScheduleId: insertMaintenance.serviceScheduleId || null,
       description: insertMaintenance.description || null,
-      dueDate: insertMaintenance.dueDate || null,
+      dueDate: ensureDateOrNull(insertMaintenance.dueDate), // Ensure Date or null
       completedDate: null,
       completedMileage: null,
       notes: insertMaintenance.notes || null,
@@ -1033,12 +1115,27 @@ export class MemStorage implements IStorage {
 
   async updateMaintenance(
     id: number,
-    maintenance: Partial<InsertMaintenance>
+    maintenance: Partial<Maintenance> // Use Partial<Maintenance>
   ): Promise<Maintenance | undefined> {
     const existingMaintenance = this.maintenanceTasks.get(id);
     if (!existingMaintenance) return undefined;
 
-    const updatedMaintenance = { ...existingMaintenance, ...maintenance };
+    const updatedData: Partial<Maintenance> = {};
+    for (const key in maintenance) {
+      if (Object.prototype.hasOwnProperty.call(maintenance, key)) {
+        const value = maintenance[key as keyof typeof maintenance];
+        if (
+          (key === "dueDate" || key === "completedDate") &&
+          value !== undefined
+        ) {
+          updatedData[key] = ensureDateOrNull(value);
+        } else if (value !== undefined) {
+          (updatedData as any)[key] = value;
+        }
+      }
+    }
+
+    const updatedMaintenance = { ...existingMaintenance, ...updatedData };
 
     // If completing, set completedDate and potentially completedMileage
     if (
@@ -1046,7 +1143,10 @@ export class MemStorage implements IStorage {
       !existingMaintenance.completedDate
     ) {
       updatedMaintenance.completedDate = new Date();
-      if (updatedMaintenance.completedMileage === undefined) {
+      if (
+        updatedMaintenance.completedMileage === undefined ||
+        updatedMaintenance.completedMileage === null
+      ) {
         const vehicle = this.vehicles.get(updatedMaintenance.vehicleId);
         updatedMaintenance.completedMileage = vehicle?.mileage ?? null;
       }
@@ -1139,6 +1239,7 @@ export class MemStorage implements IStorage {
     const notification: Notification = {
       ...insertNotification,
       id,
+      createdAt: ensureDateRequired(insertNotification.createdAt), // Ensure Date
       isRead: insertNotification.isRead ?? false,
       relatedId: insertNotification.relatedId || null,
       relatedType: insertNotification.relatedType || null,
@@ -1150,12 +1251,24 @@ export class MemStorage implements IStorage {
 
   async updateNotification(
     id: number,
-    notification: Partial<InsertNotification>
+    notification: Partial<Notification> // Use Partial<Notification>
   ): Promise<Notification | undefined> {
     const existingNotification = this.notifications.get(id);
     if (!existingNotification) return undefined;
 
-    const updatedNotification = { ...existingNotification, ...notification };
+    const updatedData: Partial<Notification> = {};
+    for (const key in notification) {
+      if (Object.prototype.hasOwnProperty.call(notification, key)) {
+        const value = notification[key as keyof typeof notification];
+        if (key === "createdAt" && value !== undefined) {
+          updatedData[key] = ensureDateRequired(value);
+        } else if (value !== undefined) {
+          (updatedData as any)[key] = value;
+        }
+      }
+    }
+
+    const updatedNotification = { ...existingNotification, ...updatedData };
     this.notifications.set(id, updatedNotification);
     return updatedNotification;
   }
@@ -1192,6 +1305,7 @@ export class MemStorage implements IStorage {
       ...insertOrder,
       id,
       orderNumber,
+      createdDate: ensureDateRequired(insertOrder.createdDate), // Ensure Date
       orderedDate: null,
       receivedDate: null,
       supplier: insertOrder.supplier || null,
@@ -1204,12 +1318,29 @@ export class MemStorage implements IStorage {
 
   async updateOrder(
     id: number,
-    order: Partial<InsertOrder>
+    order: Partial<Order> // Use Partial<Order>
   ): Promise<Order | undefined> {
     const existingOrder = this.orders.get(id);
     if (!existingOrder) return undefined;
 
-    const updatedOrder = { ...existingOrder, ...order };
+    const updatedData: Partial<Order> = {};
+    for (const key in order) {
+      if (Object.prototype.hasOwnProperty.call(order, key)) {
+        const value = order[key as keyof typeof order];
+        if (key === "createdDate" && value !== undefined) {
+          updatedData[key] = ensureDateRequired(value);
+        } else if (
+          (key === "orderedDate" || key === "receivedDate") &&
+          value !== undefined
+        ) {
+          updatedData[key] = ensureDateOrNull(value);
+        } else if (value !== undefined) {
+          (updatedData as any)[key] = value;
+        }
+      }
+    }
+
+    const updatedOrder = { ...existingOrder, ...updatedData };
     this.orders.set(id, updatedOrder);
     return updatedOrder;
   }
@@ -1280,6 +1411,7 @@ export class MemStorage implements IStorage {
     const activityLog: ActivityLog = {
       ...insertActivityLog,
       id,
+      timestamp: ensureDateRequired(insertActivityLog.timestamp), // Ensure Date
       relatedId: insertActivityLog.relatedId || null,
       relatedType: insertActivityLog.relatedType || null,
     };

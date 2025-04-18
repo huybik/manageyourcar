@@ -1,5 +1,5 @@
 /* /client/src/pages/driver/maintenance.tsx */
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Maintenance,
@@ -7,6 +7,7 @@ import {
   Part,
   VehiclePart,
   insertMaintenanceSchema,
+  InsertMaintenance, // Added import
 } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -44,11 +45,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge"; // Added import
 
 // Extend schema for the form
 const reportMaintenanceSchema = insertMaintenanceSchema
   .extend({
     selectedParts: z.array(z.number()).optional(), // Array of vehiclePart IDs
+    isUnscheduled: z.boolean().optional(), // Add isUnscheduled
   })
   .omit({
     // Fields not set by driver directly in this form
@@ -93,12 +96,12 @@ function ReportMaintenanceForm({
   });
 
   // Fetch all vehicle parts for the selected vehicle (for unscheduled reports)
-  const [selectedVehicleId, setSelectedVehicleId] = useState<
+  const [selectedVehicleIdForParts, setSelectedVehicleIdForParts] = useState<
     number | undefined
   >(vehicles[0]?.id);
   const { data: allVehiclePartsForSelectedVehicle } = useQuery<VehiclePart[]>({
-    queryKey: [`/api/vehicles/${selectedVehicleId}/parts`],
-    enabled: isUnscheduled && !!selectedVehicleId,
+    queryKey: [`/api/vehicles/${selectedVehicleIdForParts}/parts`],
+    enabled: isUnscheduled && !!selectedVehicleIdForParts,
   });
 
   const form = useForm<ReportMaintenanceFormValues>({
@@ -122,7 +125,7 @@ function ReportMaintenanceForm({
   const currentVehicleId = form.watch("vehicleId");
   useEffect(() => {
     if (isUnscheduled) {
-      setSelectedVehicleId(currentVehicleId);
+      setSelectedVehicleIdForParts(currentVehicleId);
       form.reset({ ...form.getValues(), selectedParts: [] }); // Reset selected parts on vehicle change
     }
   }, [currentVehicleId, isUnscheduled, form]);
@@ -304,7 +307,7 @@ function ReportMaintenanceForm({
                                       ])
                                     : field.onChange(
                                         field.value?.filter(
-                                          (value) => value !== vp.id
+                                          (value: number) => value !== vp.id
                                         )
                                       );
                                 }}
@@ -458,35 +461,27 @@ export default function DriverMaintenance() {
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case "critical":
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-red-500 bg-opacity-10 text-red-500">
-            {t("maintenance.critical")}
-          </span>
-        );
+        return <Badge variant="destructive">{t("maintenance.critical")}</Badge>;
       case "high":
         return (
-          <span className="px-2 py-1 text-xs rounded-full bg-amber-500 bg-opacity-10 text-amber-500">
+          <Badge className="bg-amber-500 hover:bg-amber-600">
             {t("maintenance.high")}
-          </span>
+          </Badge>
         );
       case "normal":
         return (
-          <span className="px-2 py-1 text-xs rounded-full bg-blue-500 bg-opacity-10 text-blue-500">
+          <Badge className="bg-blue-500 hover:bg-blue-600">
             {t("maintenance.normal")}
-          </span>
+          </Badge>
         );
       case "low":
         return (
-          <span className="px-2 py-1 text-xs rounded-full bg-green-500 bg-opacity-10 text-green-500">
+          <Badge className="bg-green-500 hover:bg-green-600">
             {t("maintenance.low")}
-          </span>
+          </Badge>
         );
       default:
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-gray-500 bg-opacity-10 text-gray-500">
-            {t("maintenance.unknown")}
-          </span>
-        );
+        return <Badge variant="secondary">{t("maintenance.unknown")}</Badge>;
     }
   };
 
@@ -539,13 +534,17 @@ export default function DriverMaintenance() {
 
       {/* Filters */}
       <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <Input
-          className="w-full md:w-80"
-          placeholder={t("maintenance_driver.searchPlaceholder")}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          prefix={<span className="material-icons text-gray-400">search</span>}
-        />
+        <div className="relative w-full md:w-80">
+          <span className="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            search
+          </span>
+          <Input
+            className="w-full pl-10" // Add padding for the icon
+            placeholder={t("maintenance_driver.searchPlaceholder")}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full md:w-40">
