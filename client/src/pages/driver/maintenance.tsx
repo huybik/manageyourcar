@@ -235,6 +235,7 @@ function ReportMaintenanceForm({
                 <Input
                   placeholder={t("maintenance_driver.descriptionPlaceholder")}
                   {...field}
+                  value={field.value ?? ""} // Handle null/undefined
                   required
                 />
               </FormControl>
@@ -255,6 +256,7 @@ function ReportMaintenanceForm({
                 <Textarea
                   placeholder={t("maintenance_driver.notesPlaceholder")}
                   {...field}
+                  value={field.value ?? ""} // Handle null/undefined
                 />
               </FormControl>
               <FormMessage />

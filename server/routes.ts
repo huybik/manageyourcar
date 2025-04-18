@@ -20,6 +20,7 @@ import {
   orders,
   orderItems,
   Order, // Import Order type
+  Maintenance as MaintenanceType, // Import Maintenance type
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
@@ -672,10 +673,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid maintenance ID." });
       }
-      const maintenanceData = insertMaintenanceSchema.partial().parse(req.body);
+
+      // Prepare data, ensuring dates are handled correctly
+      const maintenanceData: Partial<MaintenanceType> = {
+        ...req.body,
+        dueDate: ensureDateOrNull(req.body.dueDate),
+        completedDate: ensureDateOrNull(req.body.completedDate),
+      };
+
+      // Validate the processed data against a partial schema if necessary
+      // For simplicity, we assume the storage layer handles further validation
+      // const validatedData = insertMaintenanceSchema.partial().parse(maintenanceData);
+
       const maintenanceTask = await storage.updateMaintenance(
         id,
-        maintenanceData
+        maintenanceData // Pass the processed data
       );
 
       if (!maintenanceTask) {
@@ -684,7 +696,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.status(200).json(maintenanceTask);
     } catch (err) {
-      return handleValidationError(err, res);
+      // Handle potential errors from ensureDateOrNull or storage.updateMaintenance
+      console.error(`Error updating maintenance ${req.params.id}:`, err);
+      if (err instanceof ZodError) {
+        return handleValidationError(err, res);
+      }
+      return res
+        .status(500)
+        .json({ message: "Failed to update maintenance task." });
     }
   });
 

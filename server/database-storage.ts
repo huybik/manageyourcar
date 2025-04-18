@@ -51,7 +51,7 @@ import {
   SQL, // Import SQL type
 } from "drizzle-orm";
 import { IStorage } from "./storage";
-import { PgSelect } from "drizzle-orm/pg-core";
+import { PgSelect, PgSelectBase } from "drizzle-orm/pg-core"; // Import PgSelectBase
 
 // Helper function to ensure a value is a Date object
 // For non-nullable fields, throws error if input is invalid/null/undefined
@@ -73,6 +73,7 @@ const ensureDate = (
     }
   }
   try {
+    // Attempt to parse string dates (e.g., from JSON)
     const date = new Date(value);
     if (!isNaN(date.getTime())) {
       return date;
@@ -345,8 +346,9 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(parts, eq(vehicleParts.partId, parts.id))
       .innerJoin(vehicles, eq(vehicleParts.vehicleId, vehicles.id));
 
-    // Conditionally apply where clause
-    let finalQuery: PgSelect;
+    // Explicitly type the query builder before applying conditional where
+    let finalQuery: PgSelectBase<any, any, any, any, any, any, any, any>; // Use PgSelectBase or a more specific type if known
+
     if (vehicleIds && vehicleIds.length > 0) {
       finalQuery = query.where(inArray(vehicleParts.vehicleId, vehicleIds));
     } else {
@@ -571,7 +573,9 @@ export class DatabaseStorage implements IStorage {
       .from(serviceSchedules)
       .innerJoin(vehicles, eq(serviceSchedules.vehicleId, vehicles.id));
 
-    let finalQuery: PgSelect;
+    // Explicitly type the query builder before applying conditional where
+    let finalQuery: PgSelectBase<any, any, any, any, any, any, any, any>; // Use PgSelectBase or a more specific type if known
+
     if (vehicleIds && vehicleIds.length > 0) {
       finalQuery = query.where(inArray(serviceSchedules.vehicleId, vehicleIds));
     } else {
@@ -688,6 +692,8 @@ export class DatabaseStorage implements IStorage {
       dueDate: ensureDate(insertMaintenance.dueDate, true), // Nullable
       status: insertMaintenance.status || "pending", // Default to pending
       isUnscheduled: insertMaintenance.isUnscheduled ?? false,
+      // Ensure completedDate is null if not provided or invalid
+      completedDate: ensureDate(insertMaintenance.completedDate, true),
     };
 
     const result = await db
@@ -922,6 +928,8 @@ export class DatabaseStorage implements IStorage {
     const orderToInsert = {
       ...insertOrder,
       createdDate: ensureDate(insertOrder.createdDate, false), // Not nullable
+      orderedDate: ensureDate(insertOrder.orderedDate, true), // Nullable
+      receivedDate: ensureDate(insertOrder.receivedDate, true), // Nullable
       orderNumber,
     };
 

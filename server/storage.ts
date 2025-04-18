@@ -1097,7 +1097,7 @@ export class MemStorage implements IStorage {
       serviceScheduleId: insertMaintenance.serviceScheduleId || null,
       description: insertMaintenance.description || null,
       dueDate: ensureDateOrNull(insertMaintenance.dueDate), // Ensure Date or null
-      completedDate: null,
+      completedDate: ensureDateOrNull(insertMaintenance.completedDate), // Ensure Date or null
       completedMileage: null,
       notes: insertMaintenance.notes || null,
       assignedTo: insertMaintenance.assignedTo || null,
@@ -1306,8 +1306,8 @@ export class MemStorage implements IStorage {
       id,
       orderNumber,
       createdDate: ensureDateRequired(insertOrder.createdDate), // Ensure Date
-      orderedDate: null,
-      receivedDate: null,
+      orderedDate: ensureDateOrNull(insertOrder.orderedDate), // Ensure Date or null
+      receivedDate: ensureDateOrNull(insertOrder.receivedDate), // Ensure Date or null
       supplier: insertOrder.supplier || null,
       totalAmount: insertOrder.totalAmount || null,
       notes: insertOrder.notes || null,
