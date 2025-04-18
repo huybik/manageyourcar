@@ -45,7 +45,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge"; // Added import
+import { Badge } from "@/components/ui/badge"; // Ensure Badge is imported
 
 // Extend schema for the form
 const reportMaintenanceSchema = insertMaintenanceSchema
