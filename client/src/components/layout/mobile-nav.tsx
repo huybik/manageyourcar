@@ -1,5 +1,5 @@
 /* /client/src/components/layout/mobile-nav.tsx */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -10,11 +10,34 @@ export default function MobileNav() {
   const [location] = useLocation();
   const { t } = useTranslation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const lastScrollY = useRef(0);
 
   // Only show for mobile screens
   if (typeof window !== "undefined" && window.innerWidth >= 768) {
     return null;
   }
+
+  // Scroll handling for top bar visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      // Hide header when scrolling down, show when scrolling up
+      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+        // Hide after scrolling down 50px
+        setIsHeaderVisible(false);
+      } else {
+        setIsHeaderVisible(true);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   const isCompanyAdmin = user?.role === "company_admin";
 
@@ -48,7 +71,12 @@ export default function MobileNav() {
   return (
     <>
       {/* Mobile Header */}
-      <div className="md:hidden bg-white w-full shadow-md fixed top-0 z-10">
+      <div
+        className={cn(
+          "md:hidden bg-white w-full shadow-md fixed top-0 z-20 transition-transform duration-300 ease-in-out",
+          isHeaderVisible ? "translate-y-0" : "-translate-y-full"
+        )}
+      >
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
@@ -92,7 +120,7 @@ export default function MobileNav() {
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-20"
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30" // Increased z-index
           onClick={() => setIsMobileMenuOpen(false)}
         >
           <div

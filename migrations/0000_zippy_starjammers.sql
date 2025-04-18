@@ -11,13 +11,16 @@ CREATE TABLE "activity_logs" (
 CREATE TABLE "maintenance" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"vehicle_id" integer NOT NULL,
+	"vehicle_part_id" integer,
+	"service_schedule_id" integer,
 	"type" text NOT NULL,
 	"description" text,
-	"due_date" timestamp NOT NULL,
+	"due_date" timestamp,
 	"status" text NOT NULL,
 	"priority" text NOT NULL,
 	"assigned_to" integer,
 	"completed_date" timestamp,
+	"completed_mileage" integer,
 	"notes" text,
 	"parts_used" json,
 	"cost" real,
@@ -76,10 +79,22 @@ CREATE TABLE "parts" (
 	"supplier" text,
 	"location" text,
 	"image_url" text,
-	"maintenance_interval" integer,
+	"maintenance_interval_days" integer,
+	"maintenance_interval_mileage" integer,
 	"last_restocked" timestamp,
 	"compatible_vehicles" json,
 	CONSTRAINT "parts_sku_unique" UNIQUE("sku")
+);
+--> statement-breakpoint
+CREATE TABLE "service_schedules" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"vehicle_id" integer NOT NULL,
+	"description" text NOT NULL,
+	"frequency_days" integer,
+	"frequency_mileage" integer,
+	"last_service_date" timestamp,
+	"last_service_mileage" integer,
+	"notes" text
 );
 --> statement-breakpoint
 CREATE TABLE "users" (
@@ -100,12 +115,12 @@ CREATE TABLE "vehicle_parts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"vehicle_id" integer NOT NULL,
 	"part_id" integer NOT NULL,
-	"is_custom" boolean DEFAULT false,
-	"maintenance_interval" integer,
+	"installation_date" timestamp NOT NULL,
+	"installation_mileage" integer NOT NULL,
+	"custom_maintenance_interval_days" integer,
+	"custom_maintenance_interval_mileage" integer,
 	"last_maintenance_date" timestamp,
 	"last_maintenance_mileage" integer,
-	"next_maintenance_date" timestamp,
-	"next_maintenance_mileage" integer,
 	"notes" text
 );
 --> statement-breakpoint
@@ -121,20 +136,21 @@ CREATE TABLE "vehicles" (
 	"mileage" integer NOT NULL,
 	"assigned_to" integer,
 	"status" text NOT NULL,
-	"next_maintenance_date" timestamp,
-	"next_maintenance_mileage" integer,
 	"qr_code" text,
 	CONSTRAINT "vehicles_vin_unique" UNIQUE("vin")
 );
 --> statement-breakpoint
 ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "maintenance" ADD CONSTRAINT "maintenance_vehicle_id_vehicles_id_fk" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "maintenance" ADD CONSTRAINT "maintenance_vehicle_part_id_vehicle_parts_id_fk" FOREIGN KEY ("vehicle_part_id") REFERENCES "public"."vehicle_parts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "maintenance" ADD CONSTRAINT "maintenance_service_schedule_id_service_schedules_id_fk" FOREIGN KEY ("service_schedule_id") REFERENCES "public"."service_schedules"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "maintenance" ADD CONSTRAINT "maintenance_assigned_to_users_id_fk" FOREIGN KEY ("assigned_to") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "maintenance" ADD CONSTRAINT "maintenance_approved_by_users_id_fk" FOREIGN KEY ("approved_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_part_id_parts_id_fk" FOREIGN KEY ("part_id") REFERENCES "public"."parts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "orders" ADD CONSTRAINT "orders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "service_schedules" ADD CONSTRAINT "service_schedules_vehicle_id_vehicles_id_fk" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle_parts" ADD CONSTRAINT "vehicle_parts_vehicle_id_vehicles_id_fk" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle_parts" ADD CONSTRAINT "vehicle_parts_part_id_parts_id_fk" FOREIGN KEY ("part_id") REFERENCES "public"."parts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_assigned_to_users_id_fk" FOREIGN KEY ("assigned_to") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;

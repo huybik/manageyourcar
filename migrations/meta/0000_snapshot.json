@@ -1,5 +1,5 @@
 {
-  "id": "02171bbe-f825-4501-8f43-139ede351ff6",
+  "id": "cf955b90-0f73-4c14-8b3a-659ec9c2ddf8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -89,6 +89,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "vehicle_part_id": {
+          "name": "vehicle_part_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_schedule_id": {
+          "name": "service_schedule_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "type": {
           "name": "type",
           "type": "text",
@@ -105,7 +117,7 @@
           "name": "due_date",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "status": {
           "name": "status",
@@ -128,6 +140,12 @@
         "completed_date": {
           "name": "completed_date",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_mileage": {
+          "name": "completed_mileage",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -189,6 +207,32 @@
           "tableTo": "vehicles",
           "columnsFrom": [
             "vehicle_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "maintenance_vehicle_part_id_vehicle_parts_id_fk": {
+          "name": "maintenance_vehicle_part_id_vehicle_parts_id_fk",
+          "tableFrom": "maintenance",
+          "tableTo": "vehicle_parts",
+          "columnsFrom": [
+            "vehicle_part_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "maintenance_service_schedule_id_service_schedules_id_fk": {
+          "name": "maintenance_service_schedule_id_service_schedules_id_fk",
+          "tableFrom": "maintenance",
+          "tableTo": "service_schedules",
+          "columnsFrom": [
+            "service_schedule_id"
           ],
           "columnsTo": [
             "id"
@@ -561,8 +605,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "maintenance_interval": {
-          "name": "maintenance_interval",
+        "maintenance_interval_days": {
+          "name": "maintenance_interval_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "maintenance_interval_mileage": {
+          "name": "maintenance_interval_mileage",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -592,6 +642,81 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.service_schedules": {
+      "name": "service_schedules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vehicle_id": {
+          "name": "vehicle_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency_days": {
+          "name": "frequency_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "frequency_mileage": {
+          "name": "frequency_mileage",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_service_date": {
+          "name": "last_service_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_service_mileage": {
+          "name": "last_service_mileage",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "service_schedules_vehicle_id_vehicles_id_fk": {
+          "name": "service_schedules_vehicle_id_vehicles_id_fk",
+          "tableFrom": "service_schedules",
+          "tableTo": "vehicles",
+          "columnsFrom": [
+            "vehicle_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -700,15 +825,26 @@
           "primaryKey": false,
           "notNull": true
         },
-        "is_custom": {
-          "name": "is_custom",
-          "type": "boolean",
+        "installation_date": {
+          "name": "installation_date",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
-          "default": false
+          "notNull": true
         },
-        "maintenance_interval": {
-          "name": "maintenance_interval",
+        "installation_mileage": {
+          "name": "installation_mileage",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "custom_maintenance_interval_days": {
+          "name": "custom_maintenance_interval_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "custom_maintenance_interval_mileage": {
+          "name": "custom_maintenance_interval_mileage",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -721,18 +857,6 @@
         },
         "last_maintenance_mileage": {
           "name": "last_maintenance_mileage",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "next_maintenance_date": {
-          "name": "next_maintenance_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "next_maintenance_mileage": {
-          "name": "next_maintenance_mileage",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -848,18 +972,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "next_maintenance_date": {
-          "name": "next_maintenance_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "next_maintenance_mileage": {
-          "name": "next_maintenance_mileage",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         },
         "qr_code": {
           "name": "qr_code",

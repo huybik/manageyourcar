@@ -1,3 +1,4 @@
+/* /server/db-seed.ts */
 import { db } from "./db";
 import {
   users,
@@ -7,13 +8,15 @@ import {
   maintenance,
   notifications,
   activityLogs,
+  serviceSchedules, // Added
 } from "@shared/schema";
+import { addDays } from "date-fns"; // Import addDays
 
 // Function to seed initial data
 export async function seedDatabase() {
   console.log("Checking if database needs seeding...");
 
-  // Check if users table is empty
+  // // Check if users table is empty
   const existingUsers = await db.select().from(users);
   if (existingUsers.length > 0) {
     console.log("Database already has users, skipping seed");
@@ -22,7 +25,7 @@ export async function seedDatabase() {
 
   console.log("Seeding database with initial data...");
 
-  // Create admin user
+  // --- Create Users ---
   const [adminUser] = await db
     .insert(users)
     .values({
@@ -36,7 +39,6 @@ export async function seedDatabase() {
     })
     .returning();
 
-  // Create driver user
   const [driver1] = await db
     .insert(users)
     .values({
@@ -76,7 +78,7 @@ export async function seedDatabase() {
     })
     .returning();
 
-  // Create vehicles
+  // --- Create Vehicles ---
   const [truck] = await db
     .insert(vehicles)
     .values({
@@ -90,10 +92,7 @@ export async function seedDatabase() {
       mileage: 15000,
       assignedTo: driver1.id,
       status: "active",
-      nextMaintenanceDate: new Date(
-        new Date().setDate(new Date().getDate() + 30)
-      ),
-      nextMaintenanceMileage: 20000,
+      // Removed nextMaintenanceDate/Mileage
       qrCode: "TRUCK-1-QR",
     })
     .returning();
@@ -111,10 +110,7 @@ export async function seedDatabase() {
       mileage: 25000,
       assignedTo: driver2.id,
       status: "active",
-      nextMaintenanceDate: new Date(
-        new Date().setDate(new Date().getDate() + 15)
-      ),
-      nextMaintenanceMileage: 30000,
+      // Removed nextMaintenanceDate/Mileage
       qrCode: "SEDAN-1-QR",
     })
     .returning();
@@ -132,15 +128,12 @@ export async function seedDatabase() {
       mileage: 5000,
       assignedTo: driver3.id,
       status: "active",
-      nextMaintenanceDate: new Date(
-        new Date().setDate(new Date().getDate() + 45)
-      ),
-      nextMaintenanceMileage: 10000,
+      // Removed nextMaintenanceDate/Mileage
       qrCode: "VAN-1-QR",
     })
     .returning();
 
-  // Create parts
+  // --- Create Parts ---
   const [oilFilters] = await db
     .insert(parts)
     .values({
@@ -150,9 +143,12 @@ export async function seedDatabase() {
       category: "Filters",
       isStandard: true,
       price: 15.99,
+      quantity: 15, // Added quantity
+      minimumStock: 5, // Added minimum stock
       supplier: "AutoParts Inc.",
       location: "Warehouse A, Shelf 3",
-      maintenanceInterval: 5000, // Miles
+      maintenanceIntervalMileage: 5000, // Renamed from maintenanceInterval
+      maintenanceIntervalDays: 180, // Added days interval (6 months)
     })
     .returning();
 
@@ -165,9 +161,12 @@ export async function seedDatabase() {
       category: "Brakes",
       isStandard: true,
       price: 89.99,
+      quantity: 8, // Added quantity
+      minimumStock: 10, // Added minimum stock
       supplier: "Brakemaster Systems",
       location: "Warehouse B, Shelf 1",
-      maintenanceInterval: 20000, // Miles
+      maintenanceIntervalMileage: 20000, // Renamed from maintenanceInterval
+      // No day interval specified for this part
     })
     .returning();
 
@@ -180,9 +179,12 @@ export async function seedDatabase() {
       category: "Exterior",
       isStandard: true,
       price: 24.99,
+      quantity: 25, // Added quantity
+      minimumStock: 15, // Added minimum stock
       supplier: "AutoParts Inc.",
       location: "Warehouse A, Shelf 5",
-      maintenanceInterval: 10000, // Miles
+      maintenanceIntervalDays: 365, // Added days interval (1 year)
+      // No mileage interval specified
     })
     .returning();
 
@@ -195,159 +197,230 @@ export async function seedDatabase() {
       category: "Filters",
       isStandard: true,
       price: 29.99,
+      quantity: 12, // Added quantity
+      minimumStock: 8, // Added minimum stock
       supplier: "FilterPro",
       location: "Warehouse A, Shelf 4",
-      maintenanceInterval: 15000, // Miles
+      maintenanceIntervalMileage: 15000, // Renamed from maintenanceInterval
     })
     .returning();
 
-  // Associate parts with vehicles
-  await db.insert(vehicleParts).values({
-    vehicleId: truck.id,
-    partId: oilFilters.id,
-    isCustom: false,
-    maintenanceInterval: 5000,
-    lastMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() - 60)
-    ),
-    lastMaintenanceMileage: 10000,
-    nextMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() + 30)
-    ),
-    nextMaintenanceMileage: 15000,
-  });
+  // --- Associate Parts with Vehicles ---
+  const installDateTruckOil = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000); // 60 days ago
+  const installMileageTruckOil = 10000;
+  const [vpTruckOil] = await db
+    .insert(vehicleParts)
+    .values({
+      vehicleId: truck.id,
+      partId: oilFilters.id,
+      installationDate: installDateTruckOil,
+      installationMileage: installMileageTruckOil,
+      lastMaintenanceDate: installDateTruckOil, // Assume last maint = install
+      lastMaintenanceMileage: installMileageTruckOil,
+      // Removed maintenanceInterval, nextMaintenanceDate, nextMaintenanceMileage
+    })
+    .returning();
 
-  await db.insert(vehicleParts).values({
-    vehicleId: truck.id,
-    partId: brakePads.id,
-    isCustom: false,
-    maintenanceInterval: 20000,
-    lastMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() - 120)
-    ),
-    lastMaintenanceMileage: 5000,
-    nextMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() + 60)
-    ),
-    nextMaintenanceMileage: 25000,
-  });
+  const installDateTruckBrakes = new Date(
+    Date.now() - 120 * 24 * 60 * 60 * 1000
+  ); // 120 days ago
+  const installMileageTruckBrakes = 5000;
+  const [vpTruckBrakes] = await db
+    .insert(vehicleParts)
+    .values({
+      vehicleId: truck.id,
+      partId: brakePads.id,
+      installationDate: installDateTruckBrakes,
+      installationMileage: installMileageTruckBrakes,
+      // No last maintenance yet
+    })
+    .returning();
 
-  await db.insert(vehicleParts).values({
-    vehicleId: sedan.id,
-    partId: wiperBlades.id,
-    isCustom: false,
-    maintenanceInterval: 10000,
-    lastMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() - 45)
-    ),
-    lastMaintenanceMileage: 20000,
-    nextMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() + 15)
-    ),
-    nextMaintenanceMileage: 30000,
-  });
+  const installDateSedanWipers = new Date(
+    Date.now() - 45 * 24 * 60 * 60 * 1000
+  ); // 45 days ago
+  const installMileageSedanWipers = 20000;
+  const [vpSedanWipers] = await db
+    .insert(vehicleParts)
+    .values({
+      vehicleId: sedan.id,
+      partId: wiperBlades.id,
+      installationDate: installDateSedanWipers,
+      installationMileage: installMileageSedanWipers,
+    })
+    .returning();
 
-  await db.insert(vehicleParts).values({
-    vehicleId: van.id,
-    partId: airFilters.id,
-    isCustom: false,
-    maintenanceInterval: 15000,
-    lastMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() - 30)
-    ),
-    lastMaintenanceMileage: 2000,
-    nextMaintenanceDate: new Date(
-      new Date().setDate(new Date().getDate() + 90)
-    ),
-    nextMaintenanceMileage: 17000,
-  });
+  const installDateVanAir = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+  const installMileageVanAir = 2000;
+  const [vpVanAir] = await db
+    .insert(vehicleParts)
+    .values({
+      vehicleId: van.id,
+      partId: airFilters.id,
+      installationDate: installDateVanAir,
+      installationMileage: installMileageVanAir,
+    })
+    .returning();
 
-  // Create maintenance tasks
+  // --- Create Service Schedules ---
+  const [scheduleTruck6m] = await db
+    .insert(serviceSchedules)
+    .values({
+      vehicleId: truck.id,
+      description: "6-Month General Checkup",
+      frequencyDays: 180,
+      lastServiceDate: installDateTruckOil, // Use a recent date
+      lastServiceMileage: installMileageTruckOil,
+    })
+    .returning();
+
+  const [scheduleSedanAnnual] = await db
+    .insert(serviceSchedules)
+    .values({
+      vehicleId: sedan.id,
+      description: "Annual Inspection",
+      frequencyDays: 365,
+      lastServiceDate: installDateSedanWipers, // Use a recent date
+      lastServiceMileage: installMileageSedanWipers,
+    })
+    .returning();
+
+  const [scheduleVan10k] = await db
+    .insert(serviceSchedules)
+    .values({
+      vehicleId: van.id,
+      description: "10,000 Mile Service",
+      frequencyMileage: 10000,
+      lastServiceDate: installDateVanAir, // Use a recent date
+      lastServiceMileage: installMileageVanAir,
+    })
+    .returning();
+
+  // --- Create Maintenance Tasks ---
+  // Example: Scheduled maintenance based on a part's lifecycle
   const [oilChange] = await db
     .insert(maintenance)
     .values({
       vehicleId: truck.id,
-      type: "oil_change",
+      vehiclePartId: vpTruckOil.id, // Link to the specific vehicle part
+      type: "part_maintenance", // Updated type
       description: "Regular oil change and filter replacement",
-      dueDate: new Date(new Date().setDate(new Date().getDate() + 7)),
-      status: "pending",
+      dueDate: addDays(new Date(), 7), // Due in 7 days
+      status: "pending", // Updated status
       priority: "normal",
       assignedTo: driver1.id,
       notes: "Use synthetic oil for this vehicle",
+      isUnscheduled: false, // Explicitly set
     })
     .returning();
 
-  const [brakeInspection] = await db
+  // Example: Scheduled maintenance based on a general schedule
+  const [annualInspection] = await db
     .insert(maintenance)
     .values({
       vehicleId: sedan.id,
-      type: "brake_inspection",
-      description: "Routine brake system inspection",
-      dueDate: new Date(new Date().setDate(new Date().getDate() + 3)),
-      status: "scheduled",
+      serviceScheduleId: scheduleSedanAnnual.id, // Link to the service schedule
+      type: "general_service", // Updated type
+      description: "Annual Vehicle Inspection",
+      dueDate: addDays(new Date(), 15), // Due in 15 days
+      status: "scheduled", // Updated status
       priority: "high",
       assignedTo: driver2.id,
-      notes: "Customer reported unusual noise when braking",
+      notes: "Check brakes thoroughly as per schedule.",
+      isUnscheduled: false,
     })
     .returning();
 
+  // Example: Overdue maintenance (can be linked or unlinked)
   const [tireRotation] = await db
     .insert(maintenance)
     .values({
       vehicleId: van.id,
-      type: "tire_rotation",
+      // serviceScheduleId: scheduleVan10k.id, // Optionally link
+      type: "general_service", // Updated type
       description: "Rotate tires and check pressure",
-      dueDate: new Date(new Date().setDate(new Date().getDate() - 2)),
-      status: "overdue",
+      dueDate: addDays(new Date(), -2), // Overdue by 2 days
+      status: "pending", // Status is pending even if overdue
       priority: "normal",
       assignedTo: driver3.id,
       notes: "Also check for unusual wear patterns",
+      isUnscheduled: false,
     })
     .returning();
 
-  // Create notifications
+  // Example: Unscheduled maintenance reported by driver
+  const [unscheduledRepair] = await db
+    .insert(maintenance)
+    .values({
+      vehicleId: truck.id,
+      type: "unscheduled_repair", // New type
+      description: "Check Engine Light On",
+      // dueDate: null, // No specific due date initially
+      status: "pending", // Pending approval
+      priority: "high",
+      assignedTo: driver1.id, // Reported by driver
+      notes: "Light came on during route. Engine seems hesitant.",
+      isUnscheduled: true, // Mark as unscheduled
+      approvalStatus: "pending", // Needs approval
+    })
+    .returning();
+
+  // --- Create Notifications ---
   await db.insert(notifications).values({
     userId: driver1.id,
     title: "Maintenance Due",
-    message: "Oil change due in 7 days for Delivery Truck 1",
-    type: "maintenance",
+    message: `Oil change due soon for ${truck.name}`,
+    type: "maintenance_due", // Updated type
     isRead: false,
     createdAt: new Date(),
     relatedId: oilChange.id,
     relatedType: "maintenance",
-    link: `/driver/maintenance/${oilChange.id}`,
+    link: `/maintenance`, // Updated link
   });
 
   await db.insert(notifications).values({
     userId: driver2.id,
-    title: "Urgent Maintenance",
-    message: "High priority brake inspection scheduled in 3 days",
-    type: "maintenance",
+    title: "Maintenance Scheduled",
+    message: `High priority Annual Inspection scheduled for ${sedan.name}`,
+    type: "maintenance_scheduled", // Updated type
     isRead: false,
     createdAt: new Date(),
-    relatedId: brakeInspection.id,
+    relatedId: annualInspection.id,
     relatedType: "maintenance",
-    link: `/driver/maintenance/${brakeInspection.id}`,
+    link: `/maintenance`, // Updated link
   });
 
   await db.insert(notifications).values({
     userId: driver3.id,
     title: "Overdue Maintenance",
-    message: "Tire rotation is now overdue by 2 days",
-    type: "maintenance",
+    message: `Tire rotation is overdue for ${van.name}`,
+    type: "maintenance_overdue", // Updated type
     isRead: false,
     createdAt: new Date(),
     relatedId: tireRotation.id,
     relatedType: "maintenance",
-    link: `/driver/maintenance/${tireRotation.id}`,
+    link: `/maintenance`, // Updated link
   });
 
-  // Create activity logs
+  // Notification for admin about unscheduled task
+  await db.insert(notifications).values({
+    userId: adminUser.id,
+    title: "Maintenance Approval Required",
+    message: `${driver1.name} reported an issue with ${truck.name} (Check Engine Light)`,
+    type: "maintenance_approval_request", // New type
+    isRead: false,
+    createdAt: new Date(),
+    relatedId: unscheduledRepair.id,
+    relatedType: "maintenance",
+    link: `/maintenance`, // Link to company maintenance page
+  });
+
+  // --- Create Activity Logs ---
   await db.insert(activityLogs).values({
     userId: adminUser.id,
     action: "user_created",
-    description: "Created new driver account for Mike Johnson",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 30)),
+    description: `Created new driver account for ${driver1.name}`,
+    timestamp: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
     relatedId: driver1.id,
     relatedType: "user",
   });
@@ -355,26 +428,26 @@ export async function seedDatabase() {
   await db.insert(activityLogs).values({
     userId: adminUser.id,
     action: "vehicle_assigned",
-    description: "Assigned Delivery Truck 1 to Mike Johnson",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 25)),
+    description: `Assigned ${truck.name} to ${driver1.name}`,
+    timestamp: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000), // 25 days ago
     relatedId: truck.id,
     relatedType: "vehicle",
   });
 
   await db.insert(activityLogs).values({
     userId: driver1.id,
-    action: "maintenance_reported",
-    description: "Reported oil leak in Delivery Truck 1",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 10)),
-    relatedId: truck.id,
-    relatedType: "vehicle",
+    action: "maintenance_reported", // Changed action name slightly
+    description: `${driver1.name} reported issue: Check Engine Light On for ${truck.name}`,
+    timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+    relatedId: unscheduledRepair.id, // Link to the maintenance task
+    relatedType: "maintenance",
   });
 
   await db.insert(activityLogs).values({
     userId: adminUser.id,
     action: "maintenance_scheduled",
-    description: "Scheduled maintenance for oil change on Delivery Truck 1",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 5)),
+    description: `Scheduled maintenance: Oil Change & Filter for ${truck.name}`,
+    timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
     relatedId: oilChange.id,
     relatedType: "maintenance",
   });

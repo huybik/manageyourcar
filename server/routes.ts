@@ -1,3 +1,4 @@
+/* /server/routes.ts */
 // File: /server/routes.ts
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
@@ -10,6 +11,8 @@ import {
   insertOrderSchema,
   insertOrderItemSchema,
   insertActivityLogSchema,
+  insertVehiclePartSchema, // Added
+  insertServiceScheduleSchema, // Added
   users,
   vehicles,
   parts,
@@ -316,6 +319,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Vehicle Parts routes
+  app.get("/api/vehicles/:vehicleId/parts", async (req, res) => {
+    try {
+      const vehicleId = parseInt(req.params.vehicleId);
+      if (isNaN(vehicleId)) {
+        return res.status(400).json({ message: "Invalid vehicle ID." });
+      }
+      const vehiclePartsList = await storage.getVehiclePartsByVehicle(
+        vehicleId
+      );
+      return res.status(200).json(vehiclePartsList);
+    } catch (err) {
+      console.error(
+        `Error fetching parts for vehicle ${req.params.vehicleId}:`,
+        err
+      );
+      return res
+        .status(500)
+        .json({ message: "Failed to fetch vehicle parts." });
+    }
+  });
+
+  app.post("/api/vehicle-parts", async (req, res) => {
+    try {
+      const vehiclePartData = insertVehiclePartSchema.parse(req.body);
+      // TODO: Add validation to ensure vehicle and part exist
+      const vehiclePart = await storage.createVehiclePart(vehiclePartData);
+      return res.status(201).json(vehiclePart);
+    } catch (err) {
+      return handleValidationError(err, res);
+    }
+  });
+
+  app.put("/api/vehicle-parts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid vehicle part ID." });
+      }
+      const vehiclePartData = insertVehiclePartSchema.partial().parse(req.body);
+      const vehiclePart = await storage.updateVehiclePart(id, vehiclePartData);
+
+      if (!vehiclePart) {
+        return res.status(404).json({ message: "Vehicle part not found" });
+      }
+
+      return res.status(200).json(vehiclePart);
+    } catch (err) {
+      return handleValidationError(err, res);
+    }
+  });
+
+  app.delete("/api/vehicle-parts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid vehicle part ID." });
+      }
+      const success = await storage.deleteVehiclePart(id);
+
+      if (!success) {
+        return res.status(404).json({ message: "Vehicle part not found" });
+      }
+
+      return res.status(204).end();
+    } catch (err) {
+      console.error(`Error deleting vehicle part ${req.params.id}:`, err);
+      return res
+        .status(500)
+        .json({ message: "Failed to delete vehicle part." });
+    }
+  });
+
+  // Service Schedule routes
+  app.get("/api/vehicles/:vehicleId/service-schedules", async (req, res) => {
+    try {
+      const vehicleId = parseInt(req.params.vehicleId);
+      if (isNaN(vehicleId)) {
+        return res.status(400).json({ message: "Invalid vehicle ID." });
+      }
+      const schedules = await storage.getServiceSchedulesForVehicle(vehicleId);
+      return res.status(200).json(schedules);
+    } catch (err) {
+      console.error(
+        `Error fetching service schedules for vehicle ${req.params.vehicleId}:`,
+        err
+      );
+      return res
+        .status(500)
+        .json({ message: "Failed to fetch service schedules." });
+    }
+  });
+
+  app.post("/api/service-schedules", async (req, res) => {
+    try {
+      const scheduleData = insertServiceScheduleSchema.parse(req.body);
+      // TODO: Add validation to ensure vehicle exists
+      const schedule = await storage.createServiceSchedule(scheduleData);
+      return res.status(201).json(schedule);
+    } catch (err) {
+      return handleValidationError(err, res);
+    }
+  });
+
+  app.put("/api/service-schedules/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid schedule ID." });
+      }
+      const scheduleData = insertServiceScheduleSchema
+        .partial()
+        .parse(req.body);
+      const schedule = await storage.updateServiceSchedule(id, scheduleData);
+
+      if (!schedule) {
+        return res.status(404).json({ message: "Service schedule not found" });
+      }
+
+      return res.status(200).json(schedule);
+    } catch (err) {
+      return handleValidationError(err, res);
+    }
+  });
+
+  app.delete("/api/service-schedules/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid schedule ID." });
+      }
+      const success = await storage.deleteServiceSchedule(id);
+
+      if (!success) {
+        return res.status(404).json({ message: "Service schedule not found" });
+      }
+
+      return res.status(204).end();
+    } catch (err) {
+      console.error(`Error deleting service schedule ${req.params.id}:`, err);
+      return res
+        .status(500)
+        .json({ message: "Failed to delete service schedule." });
+    }
+  });
+
   // Maintenance routes
   app.get("/api/maintenance", async (req, res) => {
     try {
@@ -338,6 +487,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res
         .status(500)
         .json({ message: "Failed to fetch pending maintenance tasks." });
+    }
+  });
+
+  // Get maintenance reminders for a specific driver
+  app.get("/api/users/:userId/maintenance-reminders", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID." });
+      }
+      // Get vehicles assigned to the driver
+      const driverVehicles = await storage.getVehiclesByUser(userId);
+      const vehicleIds = driverVehicles.map((v) => v.id);
+
+      if (vehicleIds.length === 0) {
+        return res.status(200).json([]); // No vehicles, no reminders
+      }
+
+      // Get parts and schedules needing maintenance for these vehicles
+      const partsDue = await storage.getVehiclePartsNeedingMaintenance(
+        vehicleIds
+      );
+      const schedulesDue = await storage.getServiceSchedulesNeedingMaintenance(
+        vehicleIds
+      );
+
+      // Combine and format reminders (this is a simplified example)
+      const reminders = [
+        ...partsDue.map((vp) => ({
+          type: "part",
+          vehiclePartId: vp.id,
+          vehicleId: vp.vehicleId,
+          description: `Part maintenance due for vehicle ${vp.vehicleId}`, // Enhance with part name
+          dueDate: vp.lastMaintenanceDate, // Placeholder, actual due date needs calculation
+        })),
+        ...schedulesDue.map((ss) => ({
+          type: "schedule",
+          serviceScheduleId: ss.id,
+          vehicleId: ss.vehicleId,
+          description: ss.description,
+          dueDate: ss.lastServiceDate, // Placeholder, actual due date needs calculation
+        })),
+      ];
+
+      return res.status(200).json(reminders);
+    } catch (err) {
+      console.error(
+        `Error fetching maintenance reminders for user ${req.params.userId}:`,
+        err
+      );
+      return res
+        .status(500)
+        .json({ message: "Failed to fetch maintenance reminders." });
+    }
+  });
+
+  app.get("/api/maintenance/pending-approval", async (req, res) => {
+    try {
+      // TODO: Add role check - only company admin should access this
+      const tasks = await storage.getPendingApprovalMaintenance();
+      return res.status(200).json(tasks);
+    } catch (err) {
+      console.error("Error fetching pending approval maintenance:", err);
+      return res
+        .status(500)
+        .json({ message: "Failed to fetch pending approval tasks." });
     }
   });
 
@@ -384,7 +599,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/maintenance", async (req, res) => {
     try {
       const maintenanceData = insertMaintenanceSchema.parse(req.body);
+      // If unscheduled, set approval status to pending
+      if (maintenanceData.isUnscheduled) {
+        maintenanceData.approvalStatus = "pending";
+        maintenanceData.status = "pending"; // Initial status for unscheduled
+      }
       const maintenanceTask = await storage.createMaintenance(maintenanceData);
+      // TODO: Create notification for admin if unscheduled
       return res.status(201).json(maintenanceTask);
     } catch (err) {
       return handleValidationError(err, res);
@@ -410,6 +631,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(200).json(maintenanceTask);
     } catch (err) {
       return handleValidationError(err, res);
+    }
+  });
+
+  // Endpoint for approving/rejecting unscheduled maintenance
+  app.put("/api/maintenance/:id/approval", async (req, res) => {
+    try {
+      // TODO: Add role check - only company admin
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid maintenance ID." });
+      }
+      const { approved, userId } = req.body; // userId of the admin approving/rejecting
+      if (typeof approved !== "boolean" || typeof userId !== "number") {
+        return res
+          .status(400)
+          .json({ message: "Approval status and user ID required." });
+      }
+
+      let updatedTask;
+      if (approved) {
+        updatedTask = await storage.approveMaintenance(id, userId);
+      } else {
+        updatedTask = await storage.rejectMaintenance(id, userId);
+      }
+
+      if (!updatedTask) {
+        return res
+          .status(404)
+          .json({ message: "Maintenance task not found or not unscheduled." });
+      }
+      // TODO: Create notification for driver about approval/rejection
+      return res.status(200).json(updatedTask);
+    } catch (err) {
+      console.error(
+        `Error updating maintenance approval ${req.params.id}:`,
+        err
+      );
+      return res
+        .status(500)
+        .json({ message: "Failed to update maintenance approval." });
     }
   });
 

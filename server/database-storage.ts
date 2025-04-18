@@ -1,3 +1,4 @@
+/* /server/database-storage.ts */
 // File: /server/database-storage.ts
 import {
   users,
@@ -9,6 +10,7 @@ import {
   orderItems,
   activityLogs,
   notifications,
+  serviceSchedules, // Import new table
   type User,
   type InsertUser,
   type Vehicle,
@@ -27,8 +29,10 @@ import {
   type InsertOrderItem,
   type ActivityLog,
   type InsertActivityLog,
+  type ServiceSchedule, // Import new type
+  type InsertServiceSchedule, // Import new type
 } from "@shared/schema";
-import { format } from "date-fns";
+import { format, addDays, addMonths } from "date-fns"; // Import date-fns functions
 import { db } from "./db";
 import {
   eq,
@@ -36,11 +40,14 @@ import {
   desc,
   asc,
   lt,
+  lte, // Use lte for "less than or equal to"
   gte,
   gt,
   or,
   isNull,
+  isNotNull, // Use isNotNull
   count as drizzleCount,
+  inArray, // Use inArray for checking multiple IDs
 } from "drizzle-orm";
 import { IStorage } from "./storage";
 
@@ -64,6 +71,33 @@ const ensureDate = (
   }
   // Return undefined if parsing fails or the original value was invalid in context
   return undefined;
+};
+
+// Helper to calculate next maintenance date based on interval and last date
+const calculateNextDate = (
+  lastDate: Date | null | undefined,
+  intervalDays: number | null | undefined
+): Date | null => {
+  if (!lastDate || !intervalDays || intervalDays <= 0) {
+    return null;
+  }
+  return addDays(lastDate, intervalDays);
+};
+
+// Helper to calculate next maintenance mileage based on interval and last mileage
+const calculateNextMileage = (
+  lastMileage: number | null | undefined,
+  intervalMileage: number | null | undefined
+): number | null => {
+  if (
+    lastMileage === null ||
+    lastMileage === undefined ||
+    !intervalMileage ||
+    intervalMileage <= 0
+  ) {
+    return null;
+  }
+  return lastMileage + intervalMileage;
 };
 
 export class DatabaseStorage implements IStorage {
@@ -141,7 +175,7 @@ export class DatabaseStorage implements IStorage {
     }
     const dataToInsert = {
       ...insertVehicle,
-      nextMaintenanceDate: ensureDate(insertVehicle.nextMaintenanceDate),
+      // Removed nextMaintenanceDate/Mileage handling here
     };
 
     const result = await db.insert(vehicles).values(dataToInsert).returning();
@@ -157,19 +191,8 @@ export class DatabaseStorage implements IStorage {
   ): Promise<Vehicle | undefined> {
     const dataToUpdate = {
       ...vehicle,
-      nextMaintenanceDate: ensureDate(vehicle.nextMaintenanceDate),
+      // Removed nextMaintenanceDate/Mileage handling here
     };
-    // Remove undefined date properties to avoid setting them incorrectly
-    if (
-      dataToUpdate.nextMaintenanceDate === undefined &&
-      "nextMaintenanceDate" in vehicle
-    ) {
-      // If ensureDate returned undefined, but the key was present, it means invalid date was passed
-      // Decide how to handle this - maybe throw error or set to null if allowed by schema
-      // For now, let's remove it to avoid DB error if schema doesn't allow null
-      delete dataToUpdate.nextMaintenanceDate;
-      // Or set to null if schema allows: dataToUpdate.nextMaintenanceDate = null;
-    }
 
     const result = await db
       .update(vehicles)
@@ -180,6 +203,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVehicle(id: number): Promise<boolean> {
+    // Consider cascading deletes or handling related data (parts, schedules, maintenance)
     const result = await db
       .delete(vehicles)
       .where(eq(vehicles.id, id))
@@ -215,9 +239,12 @@ export class DatabaseStorage implements IStorage {
   ): Promise<VehiclePart> {
     const dataToInsert = {
       ...insertVehiclePart,
+      installationDate: ensureDate(insertVehiclePart.installationDate),
       lastMaintenanceDate: ensureDate(insertVehiclePart.lastMaintenanceDate),
-      nextMaintenanceDate: ensureDate(insertVehiclePart.nextMaintenanceDate),
     };
+    if (!dataToInsert.installationDate) {
+      throw new Error("Installation date is required for vehicle parts.");
+    }
     const result = await db
       .insert(vehicleParts)
       .values(dataToInsert)
@@ -234,20 +261,20 @@ export class DatabaseStorage implements IStorage {
   ): Promise<VehiclePart | undefined> {
     const dataToUpdate = {
       ...vehiclePart,
+      installationDate: ensureDate(vehiclePart.installationDate),
       lastMaintenanceDate: ensureDate(vehiclePart.lastMaintenanceDate),
-      nextMaintenanceDate: ensureDate(vehiclePart.nextMaintenanceDate),
     };
     // Remove undefined date properties
+    if (
+      dataToUpdate.installationDate === undefined &&
+      "installationDate" in vehiclePart
+    )
+      delete dataToUpdate.installationDate;
     if (
       dataToUpdate.lastMaintenanceDate === undefined &&
       "lastMaintenanceDate" in vehiclePart
     )
       delete dataToUpdate.lastMaintenanceDate;
-    if (
-      dataToUpdate.nextMaintenanceDate === undefined &&
-      "nextMaintenanceDate" in vehiclePart
-    )
-      delete dataToUpdate.nextMaintenanceDate;
 
     const result = await db
       .update(vehicleParts)
@@ -265,54 +292,73 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async getVehiclePartsNeedingMaintenance(): Promise<VehiclePart[]> {
+  // Method to get vehicle parts needing maintenance based on calculated next due dates/mileage
+  async getVehiclePartsNeedingMaintenance(
+    vehicleIds?: number[]
+  ): Promise<VehiclePart[]> {
     const today = new Date();
 
-    // Get parts with a date-based maintenance need
-    const dateMaintenance = await db
-      .select()
-      .from(vehicleParts)
-      .where(
-        and(
-          isNull(vehicleParts.nextMaintenanceDate), // Should be isNotNull? Let's assume it means date is set
-          lt(vehicleParts.nextMaintenanceDate, today)
-        )
-      );
-
-    // Get vehicle info for mileage-based maintenance
-    const vehiclesWithMileage = await db
+    // Fetch relevant vehicle parts, potentially filtered by vehicle IDs
+    let query = db
       .select({
-        id: vehicles.id,
-        mileage: vehicles.mileage,
+        vp: vehicleParts,
+        p: parts,
+        v: vehicles,
       })
-      .from(vehicles);
-
-    const mileageMap = new Map(
-      vehiclesWithMileage.map((v) => [v.id, v.mileage])
-    );
-
-    // Get parts with mileage-based maintenance need
-    const mileageMaintenance = await db
-      .select()
       .from(vehicleParts)
-      .where(isNull(vehicleParts.nextMaintenanceMileage)); // Should be isNotNull? Let's assume it means mileage is set
+      .innerJoin(parts, eq(vehicleParts.partId, parts.id))
+      .innerJoin(vehicles, eq(vehicleParts.vehicleId, vehicles.id));
 
-    // Filter mileage-based maintenance parts
-    const filteredMileage = mileageMaintenance.filter((part) => {
-      const vehicleMileage = mileageMap.get(part.vehicleId);
-      return (
-        vehicleMileage !== undefined &&
-        part.nextMaintenanceMileage !== null &&
-        vehicleMileage >= part.nextMaintenanceMileage
-      );
-    });
+    if (vehicleIds && vehicleIds.length > 0) {
+      query = query.where(inArray(vehicleParts.vehicleId, vehicleIds));
+    }
 
-    // Combine both lists, removing duplicates
-    const combinedResultsMap = new Map<number, VehiclePart>();
-    dateMaintenance.forEach((part) => combinedResultsMap.set(part.id, part));
-    filteredMileage.forEach((part) => combinedResultsMap.set(part.id, part));
+    const results = await query;
 
-    return Array.from(combinedResultsMap.values());
+    const partsNeedingMaintenance: VehiclePart[] = [];
+
+    for (const { vp, p, v } of results) {
+      const intervalDays =
+        vp.customMaintenanceIntervalDays ?? p.maintenanceIntervalDays;
+      const intervalMileage =
+        vp.customMaintenanceIntervalMileage ?? p.maintenanceIntervalMileage;
+
+      const lastMaintDate = vp.lastMaintenanceDate ?? vp.installationDate;
+      const lastMaintMileage =
+        vp.lastMaintenanceMileage ?? vp.installationMileage;
+
+      let needsMaintenance = false;
+
+      // Check date interval
+      if (intervalDays && lastMaintDate) {
+        const nextDueDate = calculateNextDate(lastMaintDate, intervalDays);
+        if (nextDueDate && nextDueDate <= today) {
+          needsMaintenance = true;
+        }
+      }
+
+      // Check mileage interval (only if not already flagged by date)
+      if (
+        !needsMaintenance &&
+        intervalMileage &&
+        lastMaintMileage !== null &&
+        v.mileage !== null
+      ) {
+        const nextDueMileage = calculateNextMileage(
+          lastMaintMileage,
+          intervalMileage
+        );
+        if (nextDueMileage && v.mileage >= nextDueMileage) {
+          needsMaintenance = true;
+        }
+      }
+
+      if (needsMaintenance) {
+        partsNeedingMaintenance.push(vp);
+      }
+    }
+
+    return partsNeedingMaintenance;
   }
 
   // Part methods
@@ -345,7 +391,7 @@ export class DatabaseStorage implements IStorage {
       .from(parts)
       .where(
         and(
-          lt(parts.quantity, parts.minimumStock), // Use less than, not less than or equal, to match client logic
+          lte(parts.quantity, parts.minimumStock), // Use less than or equal to match client logic
           gt(parts.minimumStock, 0) // Ensure minimum stock is defined
         )
       );
@@ -388,6 +434,129 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  // Service Schedule methods
+  async getServiceSchedule(id: number): Promise<ServiceSchedule | undefined> {
+    const result = await db
+      .select()
+      .from(serviceSchedules)
+      .where(eq(serviceSchedules.id, id));
+    return result[0];
+  }
+
+  async getServiceSchedulesForVehicle(
+    vehicleId: number
+  ): Promise<ServiceSchedule[]> {
+    return await db
+      .select()
+      .from(serviceSchedules)
+      .where(eq(serviceSchedules.vehicleId, vehicleId));
+  }
+
+  async createServiceSchedule(
+    insertSchedule: InsertServiceSchedule
+  ): Promise<ServiceSchedule> {
+    const dataToInsert = {
+      ...insertSchedule,
+      lastServiceDate: ensureDate(insertSchedule.lastServiceDate),
+    };
+    const result = await db
+      .insert(serviceSchedules)
+      .values(dataToInsert)
+      .returning();
+    if (result.length === 0) {
+      throw new Error("Failed to create service schedule.");
+    }
+    return result[0];
+  }
+
+  async updateServiceSchedule(
+    id: number,
+    schedule: Partial<InsertServiceSchedule>
+  ): Promise<ServiceSchedule | undefined> {
+    const dataToUpdate = {
+      ...schedule,
+      lastServiceDate: ensureDate(schedule.lastServiceDate),
+    };
+    if (
+      dataToUpdate.lastServiceDate === undefined &&
+      "lastServiceDate" in schedule
+    )
+      delete dataToUpdate.lastServiceDate;
+
+    const result = await db
+      .update(serviceSchedules)
+      .set(dataToUpdate)
+      .where(eq(serviceSchedules.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteServiceSchedule(id: number): Promise<boolean> {
+    const result = await db
+      .delete(serviceSchedules)
+      .where(eq(serviceSchedules.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Method to get service schedules needing maintenance
+  async getServiceSchedulesNeedingMaintenance(
+    vehicleIds?: number[]
+  ): Promise<ServiceSchedule[]> {
+    const today = new Date();
+
+    let query = db
+      .select({
+        ss: serviceSchedules,
+        v: vehicles,
+      })
+      .from(serviceSchedules)
+      .innerJoin(vehicles, eq(serviceSchedules.vehicleId, vehicles.id));
+
+    if (vehicleIds && vehicleIds.length > 0) {
+      query = query.where(inArray(serviceSchedules.vehicleId, vehicleIds));
+    }
+
+    const results = await query;
+    const schedulesNeedingMaintenance: ServiceSchedule[] = [];
+
+    for (const { ss, v } of results) {
+      let needsMaintenance = false;
+
+      // Check date frequency
+      if (ss.frequencyDays && ss.lastServiceDate) {
+        const nextDueDate = calculateNextDate(
+          ss.lastServiceDate,
+          ss.frequencyDays
+        );
+        if (nextDueDate && nextDueDate <= today) {
+          needsMaintenance = true;
+        }
+      }
+
+      // Check mileage frequency (only if not already flagged by date)
+      if (
+        !needsMaintenance &&
+        ss.frequencyMileage &&
+        ss.lastServiceMileage !== null &&
+        v.mileage !== null
+      ) {
+        const nextDueMileage = calculateNextMileage(
+          ss.lastServiceMileage,
+          ss.frequencyMileage
+        );
+        if (nextDueMileage && v.mileage >= nextDueMileage) {
+          needsMaintenance = true;
+        }
+      }
+
+      if (needsMaintenance) {
+        schedulesNeedingMaintenance.push(ss);
+      }
+    }
+    return schedulesNeedingMaintenance;
+  }
+
   // Maintenance methods
   async getMaintenance(id: number): Promise<Maintenance | undefined> {
     const result = await db
@@ -409,18 +578,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingMaintenance(): Promise<Maintenance[]> {
-    // Includes pending and overdue tasks
+    // Includes pending and scheduled tasks that might be overdue
+    const today = new Date();
     return await db
       .select()
       .from(maintenance)
       .where(
         or(
           eq(maintenance.status, "pending"),
-          eq(maintenance.status, "overdue"),
+          eq(maintenance.status, "scheduled"),
+          // Explicitly include tasks whose due date has passed but status hasn't been updated
           and(
-            // Also consider pending tasks whose due date has passed
-            eq(maintenance.status, "pending"),
-            lt(maintenance.dueDate, new Date())
+            or(
+              eq(maintenance.status, "pending"),
+              eq(maintenance.status, "scheduled")
+            ),
+            isNotNull(maintenance.dueDate),
+            lt(maintenance.dueDate, today)
           )
         )
       );
@@ -448,18 +622,16 @@ export class DatabaseStorage implements IStorage {
   async createMaintenance(
     insertMaintenance: InsertMaintenance
   ): Promise<Maintenance> {
-    // Ensure dueDate is a Date object
     const dueDate = ensureDate(insertMaintenance.dueDate);
-    if (!dueDate) {
-      throw new Error("Invalid or missing due date for maintenance task.");
-    }
+    // Status should be set based on context (e.g., 'pending' for scheduled, 'pending' for unscheduled needing approval)
+    const status = insertMaintenance.status || "pending"; // Default to pending
 
-    // Determine initial status based on due date
-    const status = dueDate < new Date() ? "overdue" : "pending";
     const dataToInsert = {
       ...insertMaintenance,
-      dueDate: dueDate, // Use the ensured Date object
-      status,
+      dueDate: dueDate, // Use the ensured Date object or null
+      status: status,
+      // Ensure default for isUnscheduled if not provided
+      isUnscheduled: insertMaintenance.isUnscheduled ?? false,
     };
 
     const result = await db
@@ -476,35 +648,30 @@ export class DatabaseStorage implements IStorage {
     id: number,
     maintenanceData: Partial<InsertMaintenance>
   ): Promise<Maintenance | undefined> {
-    // Prepare the data for update, ensuring dates are Date objects
-    // Use Partial<Maintenance> to allow updating completedDate etc.
     const dataToUpdate: Partial<Maintenance> = {
       ...maintenanceData,
       dueDate: ensureDate(maintenanceData.dueDate),
       completedDate: ensureDate(maintenanceData.completedDate),
     };
 
-    // If status is changing to completed, set completedDate if not already set
-    if (maintenanceData.status === "completed" && !dataToUpdate.completedDate) {
-      dataToUpdate.completedDate = new Date();
-    }
-
-    // If due date changes, potentially update status (only if not completed)
-    if (dataToUpdate.dueDate && dataToUpdate.status !== "completed") {
-      const dueDate = dataToUpdate.dueDate; // Already a Date object or null/undefined
-      if (dueDate) {
-        // Only update status if it's currently pending or overdue
-        const currentTask = await this.getMaintenance(id);
-        if (
-          currentTask &&
-          (currentTask.status === "pending" || currentTask.status === "overdue")
-        ) {
-          dataToUpdate.status = dueDate < new Date() ? "overdue" : "pending";
+    // If status is changing to completed, set completedDate and completedMileage if not already set
+    if (maintenanceData.status === "completed") {
+      if (!dataToUpdate.completedDate) {
+        dataToUpdate.completedDate = new Date();
+      }
+      // Optionally fetch current vehicle mileage to set completedMileage
+      if (
+        dataToUpdate.completedMileage === undefined &&
+        maintenanceData.vehicleId
+      ) {
+        const vehicle = await this.getVehicle(maintenanceData.vehicleId);
+        if (vehicle) {
+          dataToUpdate.completedMileage = vehicle.mileage;
         }
       }
     }
 
-    // Remove undefined date properties to avoid setting them to null in the DB
+    // Remove undefined date properties
     if (dataToUpdate.dueDate === undefined && "dueDate" in maintenanceData)
       delete dataToUpdate.dueDate;
     if (
@@ -518,7 +685,55 @@ export class DatabaseStorage implements IStorage {
       .set(dataToUpdate)
       .where(eq(maintenance.id, id))
       .returning();
+
+    // After updating maintenance (especially if completed), update the related vehiclePart/serviceSchedule
+    if (result.length > 0 && dataToUpdate.status === "completed") {
+      const completedTask = result[0];
+      if (completedTask.vehiclePartId && completedTask.completedDate) {
+        await this.updateVehiclePart(completedTask.vehiclePartId, {
+          lastMaintenanceDate: completedTask.completedDate,
+          lastMaintenanceMileage: completedTask.completedMileage,
+        });
+      }
+      if (completedTask.serviceScheduleId && completedTask.completedDate) {
+        await this.updateServiceSchedule(completedTask.serviceScheduleId, {
+          lastServiceDate: completedTask.completedDate,
+          lastServiceMileage: completedTask.completedMileage,
+        });
+      }
+    }
+
     return result[0];
+  }
+
+  async approveMaintenance(
+    id: number,
+    approverId: number
+  ): Promise<Maintenance | undefined> {
+    const task = await this.getMaintenance(id);
+    if (!task || !task.isUnscheduled) {
+      return undefined; // Or throw error
+    }
+    return this.updateMaintenance(id, {
+      approvalStatus: "approved",
+      approvedBy: approverId,
+      status: "scheduled", // Or 'pending' depending on workflow
+    });
+  }
+
+  async rejectMaintenance(
+    id: number,
+    rejectorId: number
+  ): Promise<Maintenance | undefined> {
+    const task = await this.getMaintenance(id);
+    if (!task || !task.isUnscheduled) {
+      return undefined; // Or throw error
+    }
+    return this.updateMaintenance(id, {
+      approvalStatus: "rejected",
+      approvedBy: rejectorId, // Record who rejected it
+      status: "rejected",
+    });
   }
 
   async deleteMaintenance(id: number): Promise<boolean> {

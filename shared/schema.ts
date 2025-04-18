@@ -1,3 +1,4 @@
+/* /shared/schema.ts */
 // File: /shared/schema.ts
 import {
   pgTable,
@@ -8,6 +9,7 @@ import {
   timestamp,
   real,
   json,
+  interval, // Import interval type
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -46,8 +48,7 @@ export const vehicles = pgTable("vehicles", {
   mileage: integer("mileage").notNull(),
   assignedTo: integer("assigned_to").references(() => users.id),
   status: text("status").notNull(), // 'active', 'maintenance', 'out_of_service'
-  nextMaintenanceDate: timestamp("next_maintenance_date"),
-  nextMaintenanceMileage: integer("next_maintenance_mileage"),
+  // Removed nextMaintenanceDate/Mileage - will be derived from parts/schedules
   qrCode: text("qr_code"), // QR code for vehicle identification/scanning
 });
 
@@ -59,10 +60,9 @@ export const insertVehicleSchema = createInsertSchema(vehicles, {
     .max(new Date().getFullYear() + 1),
   mileage: z.number().int().min(0),
   status: z.enum(["active", "maintenance", "out_of_service"]),
-  nextMaintenanceDate: z.date().optional().nullable(), // Allow date object
-  nextMaintenanceMileage: z.number().int().min(0).optional().nullable(),
 }).omit({
   id: true,
+  // Removed nextMaintenanceDate/Mileage from Zod schema as well
 });
 
 // Parts Inventory Schema
@@ -79,7 +79,9 @@ export const parts = pgTable("parts", {
   supplier: text("supplier"),
   location: text("location"),
   imageUrl: text("image_url"),
-  maintenanceInterval: integer("maintenance_interval"), // Default miles between maintenance
+  // Default lifecycle
+  maintenanceIntervalDays: integer("maintenance_interval_days"), // Default days between maintenance/replacement
+  maintenanceIntervalMileage: integer("maintenance_interval_mileage"), // Default miles between maintenance/replacement
   lastRestocked: timestamp("last_restocked"), // Date of last restock
   compatibleVehicles: json("compatible_vehicles").$type<string[]>(), // Array of compatible vehicle makes/models
 });
@@ -88,13 +90,14 @@ export const insertPartSchema = createInsertSchema(parts, {
   price: z.number().positive(),
   quantity: z.number().int().min(0).optional().default(0),
   minimumStock: z.number().int().min(0).optional().default(10),
-  maintenanceInterval: z.number().int().min(0).optional().nullable(),
+  maintenanceIntervalDays: z.number().int().min(0).optional().nullable(),
+  maintenanceIntervalMileage: z.number().int().min(0).optional().nullable(),
   compatibleVehicles: z.array(z.string()).optional().nullable(),
 }).omit({
   id: true,
 });
 
-// Vehicle-Parts Association Schema
+// Vehicle-Parts Association Schema (Tracks specific part instances on vehicles)
 export const vehicleParts = pgTable("vehicle_parts", {
   id: serial("id").primaryKey(),
   vehicleId: integer("vehicle_id")
@@ -103,20 +106,59 @@ export const vehicleParts = pgTable("vehicle_parts", {
   partId: integer("part_id")
     .references(() => parts.id)
     .notNull(),
-  isCustom: boolean("is_custom").default(false), // Whether this is a custom part for this vehicle
-  maintenanceInterval: integer("maintenance_interval"), // Miles between maintenance
+  installationDate: timestamp("installation_date").notNull(),
+  installationMileage: integer("installation_mileage").notNull(),
+  // Override default interval if needed for this specific instance
+  customMaintenanceIntervalDays: integer("custom_maintenance_interval_days"),
+  customMaintenanceIntervalMileage: integer(
+    "custom_maintenance_interval_mileage"
+  ),
   lastMaintenanceDate: timestamp("last_maintenance_date"),
   lastMaintenanceMileage: integer("last_maintenance_mileage"),
-  nextMaintenanceDate: timestamp("next_maintenance_date"),
-  nextMaintenanceMileage: integer("next_maintenance_mileage"),
+  // nextMaintenanceDate/Mileage will be calculated based on intervals and last maintenance/installation
   notes: text("notes"),
 });
 
 export const insertVehiclePartSchema = createInsertSchema(vehicleParts, {
-  maintenanceInterval: z.number().int().min(0).optional().nullable(),
+  installationDate: z.date().or(z.string().datetime()),
+  installationMileage: z.number().int().min(0),
+  customMaintenanceIntervalDays: z.number().int().min(0).optional().nullable(),
+  customMaintenanceIntervalMileage: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .nullable(),
+  lastMaintenanceDate: z.date().or(z.string().datetime()).optional().nullable(),
   lastMaintenanceMileage: z.number().int().min(0).optional().nullable(),
-  nextMaintenanceMileage: z.number().int().min(0).optional().nullable(),
 }).omit({
+  id: true,
+});
+
+// General Service Schedule Schema
+export const serviceSchedules = pgTable("service_schedules", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id")
+    .references(() => vehicles.id)
+    .notNull(),
+  description: text("description").notNull(), // e.g., "General Checkup", "6-Month Service"
+  frequencyDays: integer("frequency_days"),
+  frequencyMileage: integer("frequency_mileage"),
+  lastServiceDate: timestamp("last_service_date"),
+  lastServiceMileage: integer("last_service_mileage"),
+  // nextServiceDate/Mileage will be calculated
+  notes: text("notes"),
+});
+
+export const insertServiceScheduleSchema = createInsertSchema(
+  serviceSchedules,
+  {
+    frequencyDays: z.number().int().min(0).optional().nullable(),
+    frequencyMileage: z.number().int().min(0).optional().nullable(),
+    lastServiceDate: z.date().or(z.string().datetime()).optional().nullable(),
+    lastServiceMileage: z.number().int().min(0).optional().nullable(),
+  }
+).omit({
   id: true,
 });
 
@@ -126,26 +168,39 @@ export const maintenance = pgTable("maintenance", {
   vehicleId: integer("vehicle_id")
     .references(() => vehicles.id)
     .notNull(),
-  type: text("type").notNull(), // 'oil_change', 'brake_inspection', 'tire_rotation', etc.
+  // Link to specific part instance or service schedule that triggered this (optional)
+  vehiclePartId: integer("vehicle_part_id").references(() => vehicleParts.id),
+  serviceScheduleId: integer("service_schedule_id").references(
+    () => serviceSchedules.id
+  ),
+  type: text("type").notNull(), // 'part_replacement', 'part_maintenance', 'general_service', 'unscheduled_repair'
   description: text("description"),
-  dueDate: timestamp("due_date").notNull(),
-  status: text("status").notNull(), // 'pending', 'scheduled', 'completed', 'overdue'
+  // Due date might be less relevant if triggered by mileage, but good for scheduling
+  dueDate: timestamp("due_date"),
+  status: text("status").notNull(), // 'pending', 'scheduled', 'in_progress', 'completed', 'rejected' (for unscheduled)
   priority: text("priority").notNull(), // 'low', 'normal', 'high', 'critical'
   assignedTo: integer("assigned_to").references(() => users.id),
   completedDate: timestamp("completed_date"),
-  notes: text("notes"),
-  partsUsed: json("parts_used"), // Array of part IDs and quantities
+  completedMileage: integer("completed_mileage"), // Record mileage at completion
+  notes: text("notes"), // Driver notes for unscheduled, mechanic notes for completed
+  partsUsed: json("parts_used"), // Array of { partId, quantity } for parts consumed
   cost: real("cost"), // Cost of maintenance
   bill: json("bill"), // Bill details including items, labor, etc.
   billImageUrl: text("bill_image_url"), // Image of receipt/bill
-  isUnscheduled: boolean("is_unscheduled").default(false), // Whether this was an unscheduled maintenance
+  isUnscheduled: boolean("is_unscheduled").default(false), // True if reported by driver unexpectedly
   approvalStatus: text("approval_status"), // 'pending', 'approved', 'rejected' (for unscheduled maintenance)
   approvedBy: integer("approved_by").references(() => users.id), // Who approved the unscheduled maintenance
 });
 
 export const insertMaintenanceSchema = createInsertSchema(maintenance, {
-  dueDate: z.date().or(z.string().datetime()), // Allow date object or ISO string
-  status: z.enum(["pending", "scheduled", "completed", "overdue"]),
+  dueDate: z.date().or(z.string().datetime()).optional().nullable(), // Due date is optional now
+  status: z.enum([
+    "pending",
+    "scheduled",
+    "in_progress",
+    "completed",
+    "rejected",
+  ]),
   priority: z.enum(["low", "normal", "high", "critical"]),
   partsUsed: z
     .array(z.object({ partId: z.number(), quantity: z.number() }))
@@ -156,6 +211,7 @@ export const insertMaintenanceSchema = createInsertSchema(maintenance, {
     .enum(["pending", "approved", "rejected"])
     .optional()
     .nullable(),
+  completedMileage: z.number().int().min(0).optional().nullable(),
 }).omit({
   id: true,
   completedDate: true, // completedDate is set when status changes to 'completed'
@@ -169,7 +225,7 @@ export const notifications = pgTable("notifications", {
     .notNull(),
   title: text("title").notNull(),
   message: text("message").notNull(),
-  type: text("type").notNull(), // 'maintenance', 'approval', 'assignment', etc.
+  type: text("type").notNull(), // 'maintenance_due', 'maintenance_approval_request', 'low_stock', etc.
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").notNull(),
   relatedId: integer("related_id"), // ID of the related entity
@@ -256,11 +312,14 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 
+export type Part = typeof parts.$inferSelect;
+export type InsertPart = z.infer<typeof insertPartSchema>;
+
 export type VehiclePart = typeof vehicleParts.$inferSelect;
 export type InsertVehiclePart = z.infer<typeof insertVehiclePartSchema>;
 
-export type Part = typeof parts.$inferSelect;
-export type InsertPart = z.infer<typeof insertPartSchema>;
+export type ServiceSchedule = typeof serviceSchedules.$inferSelect;
+export type InsertServiceSchedule = z.infer<typeof insertServiceScheduleSchema>;
 
 export type Maintenance = typeof maintenance.$inferSelect;
 export type InsertMaintenance = z.infer<typeof insertMaintenanceSchema>;
